@@ -173,7 +173,7 @@ Free-demo repair verification: lint and frontend/backend TypeScript passed in `n
 
 The earlier private Blueprint check and startup smoke result apply only to the prior paid configuration. The free service requires separate deployment verification. The automated suite now also checks public-origin password configuration and Basic access. No provider calls were made by tests.
 
-On Render, Gemini and PayPal credentials remain unconfigured unless separately added in the private environment. Do not copy a key from local `.env` to the public service without explicit intent to test it.
+Render already has a masked `GEMINI_API_KEY` entry. Its value and live access were not inspected; `GEMINI_MODEL` and PayPal settings were not visible among the service variables. AI needs both key and model, and PayPal needs its own Sandbox settings. Do not copy or expose local secrets to complete the demo automatically.
 
 No real provider transaction, live Gemini interpretation, webhook delivery or screenshots are claimed as tested. Remaining limitations include shared demo identity, ephemeral SQLite, manual reconciliation of expired uncertain attempts, and no refund/reversal processing. Tests do not establish production security guarantees.
 
