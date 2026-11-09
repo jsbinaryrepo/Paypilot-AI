@@ -1,8 +1,12 @@
 # PayPilot-AI project rules
 
+## Current free demo deployment
+
+The user chose Render Free for the existing web service. The public URL requires a server-side HTTP Basic password gate, configured only through `DEMO_PASSWORD` in Render's private environment. The service uses ephemeral SQLite, so restarts and redeploys can erase invoices and payments. Use synthetic demo data only; do not claim durable payment records or production authentication. This deployment decision supersedes the earlier private paid Blueprint guidance below.
+
 ## Current authorized stage
 
-The current authorized milestone is Stage 6: deployment preparation and hackathon submission documentation. Preserve existing architecture and UI; add no application features. Prepare the production build, private Render configuration, environment/setup guide, architecture/integration explanations, real screenshot placeholders and a demo script under three minutes. Stop after Stage 6. Do not claim an actual deployment or live provider test without verification. Public authentication remains outside scope: keep the workspace private with SSH access. HOST defaults to loopback; Render's private service may bind 0.0.0.0 for port detection while retaining Host/origin restrictions. Use only https://api-m.sandbox.paypal.com. Never mark an invoice paid from a URL or a browser-supplied price. Never replace an uncertain order without provider-confirmed safe termination. Reload checkout state after acquiring its database lease, and treat malformed provider order responses as safe upstream failures.
+Stages 1–6 are complete; the current request is to repair the existing Render Free web service. Preserve the architecture and UI; add only the access gate and deployment changes needed for a safe free demo. Do not claim deployment or live provider behavior without verification. HOST defaults to loopback locally and binds 0.0.0.0 on Render. Use only https://api-m.sandbox.paypal.com. Never mark an invoice paid from a URL or a browser-supplied price. Never replace an uncertain order without provider-confirmed safe termination. Reload checkout state after acquiring its database lease, and treat malformed provider order responses as safe upstream failures.
 
 Stage 2 had confirmed prerequisite blockers: dashboard aggregate type inference, fresh SQLite migration setup, and disconnected session-only invoice storage. Fix only what is needed to support real draft creation. The application now uses SQLite-backed invoices; optional `details` preserves existing line items and notes. Never populate the active workspace with demo fixtures. `npm run dev`, `npm run build`, and `npm run check` target both frontend and backend; `dev:client`, `build:client`, and `check:client` remain available.
 

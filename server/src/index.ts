@@ -30,6 +30,7 @@ try {
       webhookId: config.PAYPAL_WEBHOOK_ID,
       origin: config.CLIENT_ORIGIN,
     }),
+    config.DEMO_PASSWORD,
   );
   app.use(express.static(resolve("dist/client")));
   const server = app.listen(config.PORT, config.HOST, () => {

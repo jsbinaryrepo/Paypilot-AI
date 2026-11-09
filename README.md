@@ -2,7 +2,7 @@
 
 PayPilot AI helps freelancers turn a written request into a reviewed invoice and collect a PayPal Sandbox payment. It uses React, TypeScript, Vite, Tailwind CSS and Lucide for the interface; Express, Prisma and SQLite for the API and storage; the official Google Gen AI SDK for extraction; and PayPal REST Orders v2 for checkout.
 
-**Status:** Stages 1–5 are implemented; Stage 6 prepares deployment and submission materials. No Render deployment, live Gemini request, real PayPal Sandbox transaction, or live webhook delivery has been verified. The deployment target is a **private single-user demo**, with access through SSH. There is no public login or public demo URL.
+**Status:** Stages 1–6 are implemented. A free Render web service exists, but verify its current deployment before claiming it is live. No live Gemini request, real PayPal Sandbox transaction, or live webhook delivery has been verified. The free demo uses one shared owner and an HTTP Basic password gate. Its SQLite data can disappear on restart or redeploy; use synthetic data only.
 
 ## Implemented scope and architecture
 
@@ -35,12 +35,12 @@ server/src/              API, configuration, startup, migrations and tests
 server/src/services/     Modular Gemini and PayPal services
 shared/                 Safe shared schemas and types; no credentials
 prisma/                 Schema and additive migration history
-render.yaml             Private Render service with persistent SQLite disk
+render.yaml             Free Render web service with temporary SQLite data
 .env.example            Placeholder environment configuration
 AGENTS.md               Project rules and stage boundaries
 ```
 
-No public authentication, invoice emailing, live-money payments, refunds/reversal reconciliation or multi-user deployment is implemented. Legacy manual bookkeeping is available for invoices without a PayPal checkout and is distinct from verified PayPal payments.
+No individual user accounts, invoice emailing, live-money payments, refunds/reversal reconciliation or multi-user deployment is implemented. The Basic gate is for a limited shared demo, not production account security. Legacy manual bookkeeping is available for invoices without a PayPal checkout and is distinct from verified PayPal payments.
 
 ## Run locally
 
@@ -82,10 +82,11 @@ All values belong in the ignored root `.env` locally or Render's server environm
 
 | Variable | Required / default | Local / Render configuration |
 | --- | --- | --- |
-| `DATABASE_URL` | Required | Local `file:./dev.db` (relative to `prisma/`); Render `file:/var/data/paypilot.db`. |
-| `PORT` | Default `3001` | Blueprint pins `3001` for the SSH tunnel. |
-| `HOST` | Default `127.0.0.1` | Local loopback; `0.0.0.0` only for the private Render service's port detection. |
-| `CLIENT_ORIGIN` | Default `http://127.0.0.1:5173` | Built app and Render tunnel: `http://127.0.0.1:3001`. Only localhost/127.0.0.1 ports 5173/3001 are supported. |
+| `DATABASE_URL` | Required | Local and free Render `file:./dev.db` (relative to `prisma/`); free Render storage is temporary. |
+| `PORT` | Default `3001` | Render service pins `3001`. |
+| `HOST` | Default `127.0.0.1` | Local loopback; free Render uses `0.0.0.0` for port detection. |
+| `CLIENT_ORIGIN` | Default `http://127.0.0.1:5173` | Built local app: `http://127.0.0.1:3001`; free Render: `https://paypilot-ai-3sho.onrender.com`. |
+| `DEMO_PASSWORD` | Required for public Render origin | At least 32 random characters in Render's private environment. HTTP Basic username is `paypilot`. Do not commit or share the password publicly. |
 | `LOCAL_USER_EMAIL` | Default `owner@example.test` | Stable local owner identity, **not authentication**. Changing it selects/creates another owner; it does not transfer invoices. |
 | `GEMINI_API_KEY` | Required for AI only | Server secret from your Google AI project; blank disables AI. |
 | `GEMINI_MODEL` | Required for AI only | A model ID available to your project supporting structured JSON; the example value is illustrative, not verified account access. |
@@ -142,38 +143,39 @@ git diff --cached --stat
 git diff --cached
 ```
 
-Review the staged diff for credentials, personal data, unrelated work and generated artifacts before committing. Keep `.env`, SQLite databases, `node_modules/` and `dist/` ignored. Then commit the reviewed files and push your chosen branch to the existing origin through your normal GitHub workflow; no commit or push is performed by this preparation stage. Give Render access to only the required repository. Add a concise repository description, topic tags and the eventual demo video link through GitHub settings. Do not invent a license: choose one only if you have permission to license all included work. Use a reviewed submission commit SHA so reviewers can reproduce the build.
+Review the staged diff for credentials, personal data, unrelated work and generated artifacts before committing. Keep `.env`, SQLite databases, `node_modules/` and `dist/` ignored. Use a reviewed submission commit SHA so reviewers can reproduce the build. Add a demo video link only after it exists; do not invent a license.
 
-## Render deployment preparation
+## Free Render deployment
 
-`render.yaml` defines one **paid private Node service**, one instance and a 1 GB persistent disk at `/var/data`. There is no public `onrender.com` URL for this service. Private access preserves the current single-user architecture; public authentication is outside this stage. Confirm plan/storage costs in Render before creating resources. See [private services](https://render.com/docs/private-services), [Blueprint specification](https://render.com/docs/blueprint-spec) and [persistent disks](https://render.com/docs/disks).
+The existing Render **Free Web Service** is `Paypilot-AI` at [paypilot-ai-3sho.onrender.com](https://paypilot-ai-3sho.onrender.com). `render.yaml` records the free configuration for future setup. Keep the existing service; a paid Blueprint or disk is unnecessary. Free instances spin down after inactivity, and local SQLite files are **ephemeral**. A restart, redeploy or platform move can erase invoices and payment records. Use synthetic demo data only; do not rely on this service for durable payment bookkeeping or real customers.
 
-1. Push the reviewed source, lockfile, Prisma migrations and Blueprint to your GitHub branch.
-2. In Render, create a Blueprint from that repository/branch. Review the private service, paid plan and disk. The repository root must contain `package.json` and `render.yaml`; do not set the root to `client/` or `server/`.
-3. Set the prompted `sync: false` Gemini/PayPal values in Render's environment UI. If intentionally demonstrating missing credentials, leave those integrations disabled and say so. Add optional `PAYPAL_WEBHOOK_ID` only when a relay/subscription exists. Do not upload `.env`.
-4. Build runs `npm ci --include=dev && npm run db:generate && npm run build`. Tooling dependencies are needed for TypeScript/Vite/Prisma; do not prune them before this command. No provider calls or database writes are required during build.
-5. Startup runs `node dist/server/src/migrate.js && npm start`. Migration runs at startup because the disk is unavailable during build and pre-deploy. It opens a missing SQLite file without truncating existing data, applies migrations, then starts the server. A failed migration prevents startup.
-6. Check logs and Render's private-service TCP readiness. No HTTP health-check field is configured for the private service; verify `/api/health` yourself through SSH/tunnel. The disk supports one instance; keep single-instance deployment and expect downtime during redeployment. Back up SQLite consistently before migrations using a SQLite-aware backup procedure, not a live database file copy.
-7. Configure your own SSH public key in Render and copy the service's SSH destination from **Connect → SSH**. Follow [Render SSH setup](https://render.com/docs/ssh); never share your private key. Verify Render's documented host fingerprint.
-8. Stop your local API if it occupies port 3001, then substitute the actual SSH destination below and keep the tunnel open:
+Configure the existing service in Render from the repository root and `main` branch:
 
-```text
-ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:3001:127.0.0.1:3001 SERVICE_SSH_DESTINATION
-```
+| Setting | Value |
+| --- | --- |
+| Build command | `npm ci --include=dev && npm run db:generate && npm run build` |
+| Start command | `node dist/server/src/migrate.js && npm start` |
+| `NODE_VERSION` / `NODE_ENV` | `24.14.0` / `production` |
+| `DATABASE_URL` | `file:./dev.db` |
+| `HOST` / `PORT` | `0.0.0.0` / `3001` |
+| `CLIENT_ORIGIN` | `https://paypilot-ai-3sho.onrender.com` |
+| `DEMO_PASSWORD` | A private random string of at least 32 characters |
+| `LOCAL_USER_EMAIL` / `INVOICE_TIMEZONE` | `owner@example.test` / `Asia/Kolkata` |
+| `PAYPAL_ENV` | `sandbox` |
 
-Open `http://127.0.0.1:3001` and `http://127.0.0.1:3001/api/health`. Keep this exact host/port so browser origin validation and PayPal redirects match `CLIENT_ORIGIN`. SSH encrypts the remote leg; the browser uses local loopback. Render documents [private UI access using SSH forwarding](https://render.com/docs/deploy-temporal#ui-access). This project's actual Render startup, tunnel and remote provider flow remain unverified until you run them.
+Set `DEMO_PASSWORD` in Render's private environment, never in GitHub or the client. Open the public URL over HTTPS and sign in to the browser's Basic prompt with username `paypilot` and that password. This protects a single shared demo; anyone with the password sees the same invoices. Render's health probe may receive 401; readiness should be judged by startup logs and an authenticated `/api/health` request. Missing Gemini or PayPal credentials leave those integrations disabled. Add those secrets in Render only if you intend to test them and have confirmed the ephemeral database risk.
 
-Auto-deploy is off; use a deliberate manual deploy after environment/source changes. New deployments start with a fresh database on the disk: local invoices are not uploaded. Preserve the disk across redeploys and verify a synthetic invoice survives restart. If you need a public judge-accessible URL, record that requirement as unresolved; changing service type or removing Host/origin checks would expose this unauthenticated workspace. Share a video or run a supervised private demo instead.
+After pushing a reviewed commit, manually deploy the existing free service. Check Render logs for successful migration and listening on `0.0.0.0:3001`, then verify the password challenge, authenticated health, frontend, and synthetic invoice flow. The demo password gate also blocks unauthenticated PayPal webhooks; return-page verification remains the checkout path until a protected webhook exception is implemented and tested. A real PayPal Sandbox test requires valid Sandbox business/buyer accounts and must be explicitly reported as real only after provider approval, verified capture and database state have been observed. Do not use the free instance to retain the only record of a transaction.
 
 ## Verification and manual demo
 
-Stage 6 verification: `npm run check` passed lint, frontend/backend TypeScript, **40 tests with zero failures**, and both production builds on Node 24.14.0. Automated tests use mocked Gemini/PayPal transports and real temporary migrated SQLite databases. Coverage includes confirmation, malformed/hostile model output, missing customer details, invoice validation/ownership, price tampering, capture association, currency/amount/finality, duplicates, lost responses, lease concurrency, signature/replay handling and atomic rollback/recovery. Existing Lucide/Zod annotation warnings are non-fatal.
+Free-demo repair verification: lint and frontend/backend TypeScript passed in `npm run check`; the first test run could not connect to loopback in the restricted shell. The same suite then passed **41 tests with zero failures** with loopback access, and `npm run build` passed both production builds. Automated tests use mocked Gemini/PayPal transports and real temporary migrated SQLite databases. Coverage includes the public Basic gate, confirmation, invoice validation/ownership, price tampering, capture verification, duplicates, lost responses, signature/replay handling and atomic rollback/recovery. Existing Lucide/Zod annotation warnings are non-fatal.
 
-Local YAML parsing and configuration assertions passed for the private service, disk, runtime migration command, unique environment keys and secret placeholders. Render-side Blueprint validation/import remains manual. A compiled startup smoke check passed with a fresh temporary SQLite file, `NODE_ENV=production` and `HOST=0.0.0.0`: migrations, database health, built frontend, raw HTTP Host rejection and disabled PayPal status. An initial fetch-based custom-Host probe failed its assertion; the raw HTTP probe verified the intended 403 response without an application change. No provider calls were made. No browser checks were repeated.
+The earlier private Blueprint check and startup smoke result apply only to the prior paid configuration. The free service requires separate deployment verification. The automated suite now also checks public-origin password configuration and Basic access. No provider calls were made by tests.
 
-Locally missing integration values at inspection: `GEMINI_API_KEY`, `GEMINI_MODEL`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_MERCHANT_ID`; optional `PAYPAL_WEBHOOK_ID` is also unset. Stage 6 changed only `render.yaml`, `.env.example`, `AGENTS.md`, this README, `server/src/config.ts`, `server/src/index.ts`, and the existing configuration test in `server/src/app.test.ts`. The server change makes only the bind address configurable and retains the local default and access guards.
+On Render, Gemini and PayPal credentials remain unconfigured unless separately added in the private environment. Do not copy a key from local `.env` to the public service without explicit intent to test it.
 
-No real provider transaction, live Gemini interpretation, webhook delivery, Render deployment or screenshots are claimed as tested. Remaining limitations include local-only identity, no public login, manual reconciliation of expired uncertain attempts, and no refund/reversal processing. Tests do not establish production security guarantees.
+No real provider transaction, live Gemini interpretation, webhook delivery or screenshots are claimed as tested. Remaining limitations include shared demo identity, ephemeral SQLite, manual reconciliation of expired uncertain attempts, and no refund/reversal processing. Tests do not establish production security guarantees.
 
 Before recording, configure your own credentials, use synthetic customer data, and rehearse this sequence:
 
@@ -207,7 +209,7 @@ Rehearse within these time slots; edit waiting time transparently if needed. Rec
 | 0:55–1:20 | Change a field, review and explicitly confirm; reload the saved invoice. “Server validation checks the total, currency and line items. Prisma stores the confirmed draft in SQLite.” |
 | 1:20–2:05 | Start checkout, approve as the Sandbox buyer, return and capture. “The server uses the stored invoice total. A return URL does not prove payment; the server verifies the associated order and completed capture.” Only show a verified result if achieved; otherwise state the actual error and that real Sandbox testing remains incomplete. |
 | 2:05–2:25 | Refresh Check payment and show recorded state if verified. “Retries reconcile the existing order and use persisted request keys. Automated tests cover duplicate requests, mismatched totals and uncertain responses using mocked APIs.” |
-| 2:25–2:45 | Show architecture/tests and close. “React calls Express; Gemini extracts and PayPal handles Sandbox checkout. We have automated validation and payment tests. Render deployment is prepared as a private service; its actual deployment status and any remaining live tests are disclosed in the submission.” |
+| 2:25–2:45 | Show architecture/tests and close. “React calls Express; Gemini extracts and PayPal handles Sandbox checkout. We have automated validation and payment tests. The free Render demo has temporary data; its actual deployment and live provider test status are disclosed in the submission.” |
 
 ## Final submission checklist
 
@@ -215,8 +217,8 @@ Rehearse within these time slots; edit waiting time transparently if needed. Rec
 - [ ] Re-run `npm run check` on that commit and record the actual result.
 - [ ] Configure provider credentials privately and verify live Gemini/model access.
 - [ ] Complete the manual Sandbox approval/capture, cancellation/retry and duplicate checks; record actual results.
-- [ ] Validate/import the Blueprint in Render, provision the paid disk/service, and verify startup, tunnel, health and persistence.
-- [ ] State “private deployment” or “not deployed” accurately; leave public demo URL unset if none exists.
+- [ ] Verify the existing free Render service starts, challenges for the demo password and serves authenticated health/frontend.
+- [ ] Disclose ephemeral SQLite and never claim payment record persistence on the free service.
 - [ ] Capture and redact actual screenshots; replace placeholders only with real evidence.
 - [ ] Record/upload the video under 3 minutes and add its real link to the submission.
 - [ ] Disclose mocked versus real tests, missing live verification, public-access limitations and refunds/reversals scope.

@@ -1,19 +1,15 @@
-# Private hackathon workspace: no public URL or unauthenticated public API.
-# See README before provisioning paid compute and persistent storage.
+# Free public demo. SQLite data is ephemeral and can be lost on restarts or redeploys.
+# Set a random DEMO_PASSWORD (at least 32 characters) in Render before deployment.
 services:
-  - type: pserv
+  - type: web
     name: paypilot-ai
     runtime: node
-    plan: 0.5c-512mb
+    plan: free
     numInstances: 1
     autoDeployTrigger: off
     buildCommand: npm ci --include=dev && npm run db:generate && npm run build
-    # The disk is available at runtime, not during build or pre-deploy.
+    # Free services lack a persistent disk; migrate the temporary SQLite file at startup.
     startCommand: node dist/server/src/migrate.js && npm start
-    disk:
-      name: paypilot-data
-      mountPath: /var/data
-      sizeGB: 1
     envVars:
       - key: NODE_VERSION
         value: 24.14.0
@@ -24,9 +20,11 @@ services:
       - key: PORT
         value: "3001"
       - key: DATABASE_URL
-        value: file:/var/data/paypilot.db
+        value: file:./dev.db
       - key: CLIENT_ORIGIN
-        value: http://127.0.0.1:3001
+        value: https://paypilot-ai-3sho.onrender.com
+      - key: DEMO_PASSWORD
+        sync: false
       - key: LOCAL_USER_EMAIL
         value: owner@example.test
       - key: INVOICE_TIMEZONE

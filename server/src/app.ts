@@ -1,4 +1,5 @@
 import express, { type ErrorRequestHandler } from "express";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { extractionRequestSchema } from "../../shared/ai-invoice.js";
@@ -32,13 +33,27 @@ export function createApp(
   clientOrigin = "http://127.0.0.1:5173",
   ai: InvoiceAi = createInvoiceAi(),
   paypal: PayPal = new PayPal(db, { origin: clientOrigin }),
+  demoPassword?: string,
 ) {
   const app = express();
   app.disable("x-powered-by");
-  // Local single-user workspace. No caller-supplied identity; do not expose publicly.
+  if (demoPassword) {
+    const expected = createHash("sha256")
+      .update(`Basic ${Buffer.from(`paypilot:${demoPassword}`).toString("base64")}`)
+      .digest();
+    app.use((req, res, next) => {
+      const supplied = createHash("sha256").update(req.headers.authorization ?? "").digest();
+      if (!timingSafeEqual(supplied, expected)) {
+        res.setHeader("WWW-Authenticate", 'Basic realm="PayPilot Demo"');
+        return res.status(401).end();
+      }
+      next();
+    });
+  }
+  // Single-user demo; the Basic gate protects a public Render instance.
   app.use((req, res, next) => {
     const host = req.hostname;
-    if (!["localhost", "127.0.0.1"].includes(host))
+    if (!["localhost", "127.0.0.1", new URL(clientOrigin).hostname].includes(host))
       return next(new HttpError(403, "Local access only."));
     if (
       req.headers.origin &&

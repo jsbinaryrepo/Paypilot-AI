@@ -6,8 +6,12 @@ export const configSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   HOST: z.enum(["127.0.0.1", "0.0.0.0"]).default("127.0.0.1"),
   CLIENT_ORIGIN: z
-    .enum(["http://127.0.0.1:5173", "http://localhost:5173", "http://127.0.0.1:3001", "http://localhost:3001"])
+    .union([
+      z.enum(["http://127.0.0.1:5173", "http://localhost:5173", "http://127.0.0.1:3001", "http://localhost:3001"]),
+      z.string().regex(/^https:\/\/[a-z0-9-]+\.onrender\.com$/),
+    ])
     .default("http://127.0.0.1:5173"),
+  DEMO_PASSWORD: z.string().min(32).optional().or(z.literal("")),
   LOCAL_USER_EMAIL: z.email().default("owner@example.test"),
   PAYPAL_CLIENT_ID: z.string().trim().optional(),
   PAYPAL_CLIENT_SECRET: z.string().trim().optional(),
@@ -41,5 +45,7 @@ export function readConfig(env: NodeJS.ProcessEnv) {
       `Invalid configuration: ${result.error.issues.map((issue) => issue.path.join(".")).join(", ")}`,
     );
   }
+  if (result.data.CLIENT_ORIGIN.startsWith("https://") && !result.data.DEMO_PASSWORD)
+    throw new Error("Invalid configuration: DEMO_PASSWORD");
   return result.data;
 }

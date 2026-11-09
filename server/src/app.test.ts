@@ -407,6 +407,14 @@ test("configuration fails safely and decimal amounts convert exactly", () => {
   assert.equal(readConfig({ DATABASE_URL: "file:./test.db" }).PORT, 3001);
   assert.equal(readConfig({ DATABASE_URL: "file:./test.db" }).HOST, "127.0.0.1");
   assert.equal(readConfig({ DATABASE_URL: "file:/var/data/paypilot.db", HOST: "0.0.0.0" }).HOST, "0.0.0.0");
+  assert.throws(
+    () => readConfig({ DATABASE_URL: "file:./dev.db", CLIENT_ORIGIN: "https://paypilot-ai-3sho.onrender.com" }),
+    /^Error: Invalid configuration: DEMO_PASSWORD$/,
+  );
+  assert.equal(
+    readConfig({ DATABASE_URL: "file:./dev.db", CLIENT_ORIGIN: "https://paypilot-ai-3sho.onrender.com", DEMO_PASSWORD: "a".repeat(32) }).DEMO_PASSWORD,
+    "a".repeat(32),
+  );
   assert.throws(() => readConfig({ DATABASE_URL: "file:./test.db", HOST: "public.example" }));
   assert.throws(
     () => readConfig({ DATABASE_URL: "secret-invalid-url" }),
@@ -419,6 +427,28 @@ test("configuration fails safely and decimal amounts convert exactly", () => {
   assert.equal(parseAmount("0.01"), 1);
   assert.equal(parseAmount("2.999"), null);
   assert.equal(parseAmount("-1"), null);
+});
+
+test("public demo requires Basic access before serving API data", async () => {
+  const password = "b".repeat(32);
+  const demo = createApp(
+    db, ownerId, "https://paypilot-ai-3sho.onrender.com", undefined, undefined, password,
+  ).listen(0, "127.0.0.1");
+  await once(demo, "listening");
+  const address = demo.address();
+  assert.ok(address && typeof address !== "string");
+  const url = `http://127.0.0.1:${address.port}/api/health`;
+  try {
+    const denied = await fetch(url);
+    assert.equal(denied.status, 401);
+    assert.match(denied.headers.get("www-authenticate") ?? "", /Basic/);
+    assert.equal((await fetch(url, { headers: { Authorization: "Basic " + Buffer.from("paypilot:wrong").toString("base64") } })).status, 401);
+    assert.equal((await fetch(url, { headers: { Authorization: "Basic " + Buffer.from(`paypilot:${password}`).toString("base64") } })).status, 200);
+  } finally {
+    demo.close();
+    demo.closeAllConnections();
+    await once(demo, "close");
+  }
 });
 
 test("existing editor details persist and mismatched totals are rejected", async () => {
