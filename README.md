@@ -2,7 +2,7 @@
 
 PayPilot AI helps freelancers turn a written request into a reviewed invoice and collect a PayPal Sandbox payment. It uses React, TypeScript, Vite, Tailwind CSS and Lucide for the interface; Express, Prisma and SQLite for the API and storage; the official Google Gen AI SDK for extraction; and PayPal REST Orders v2 for checkout.
 
-**Status:** Stages 1–6 are implemented. A free Render web service exists, but verify its current deployment before claiming it is live. No live Gemini request, real PayPal Sandbox transaction, or live webhook delivery has been verified. The free demo uses one shared owner and an HTTP Basic password gate. Its SQLite data can disappear on restart or redeploy; use synthetic data only.
+**Status:** Stages 1–6 are implemented. The free Render site is a no-sign-in, browser-only manual invoice demo. Drafts stay in each visitor's browser; Gemini, PayPal and the shared server database are unavailable to that public UI. The server `/api` remains password protected. No live Gemini request, real PayPal Sandbox transaction, or live webhook delivery has been verified.
 
 ## Implemented scope and architecture
 
@@ -40,7 +40,7 @@ render.yaml             Free Render web service with temporary SQLite data
 AGENTS.md               Project rules and stage boundaries
 ```
 
-No individual user accounts, invoice emailing, live-money payments, refunds/reversal reconciliation or multi-user deployment is implemented. The Basic gate is for a limited shared demo, not production account security. Legacy manual bookkeeping is available for invoices without a PayPal checkout and is distinct from verified PayPal payments.
+No individual user accounts, invoice emailing, live-money payments, refunds/reversal reconciliation or multi-user deployment is implemented. The public browser demo is not a payment service. The server's Basic gate protects its shared API; it is not production account security. Legacy manual bookkeeping in the local full app is distinct from verified PayPal payments.
 
 ## Run locally
 
@@ -86,7 +86,8 @@ All values belong in the ignored root `.env` locally or Render's server environm
 | `PORT` | Default `3001` | Render service pins `3001`. |
 | `HOST` | Default `127.0.0.1` | Local loopback; free Render uses `0.0.0.0` for port detection. |
 | `CLIENT_ORIGIN` | Default `http://127.0.0.1:5173` | Built local app: `http://127.0.0.1:3001`; free Render: `https://paypilot-ai-3sho.onrender.com`. |
-| `DEMO_PASSWORD` | Required for public Render origin | At least 32 random characters in Render's private environment. HTTP Basic username is `paypilot`. Do not commit or share the password publicly. |
+| `DEMO_PASSWORD` | Required for public Render origin | At least 32 random characters in Render's private environment. Protects `/api`; the public browser-only UI does not use it. Do not commit or share it. |
+| `VITE_PUBLIC_DEMO` | Default false | Build-time frontend switch. Set true only for the public browser-only demo; it contains no secret. |
 | `LOCAL_USER_EMAIL` | Default `owner@example.test` | Stable local owner identity, **not authentication**. Changing it selects/creates another owner; it does not transfer invoices. |
 | `GEMINI_API_KEY` | Required for AI only | Server secret from your Google AI project; blank disables AI. |
 | `GEMINI_MODEL` | Required for AI only | A model ID available to your project supporting structured JSON; the example value is illustrative, not verified account access. |
@@ -122,7 +123,7 @@ In the [PayPal Developer Dashboard](https://developer.paypal.com/dashboard/), cr
 
 The database lease serializes payment operations, and unique order/capture/invoice-payment constraints prevent duplicate records in the tested scenarios. Invoice editing and manual status updates are blocked once a checkout exists. Pending, denied or mismatched captures do not settle an invoice.
 
-Optional webhook: subscribe to `PAYMENT.CAPTURE.COMPLETED` on the same REST app and set `PAYPAL_WEBHOOK_ID`. `/api/paypal/webhook` verifies original event/signature headers via PayPal and then re-fetches the authoritative associated order. Other verified event types do not change state. The private Blueprint has no public webhook URL. Live delivery requires a separately configured HTTPS relay exposing **only** that route and preserving body/transmission headers with an allowed loopback Host; no relay is provisioned here. Return-page reconciliation works without webhooks.
+Optional webhook: subscribe to `PAYMENT.CAPTURE.COMPLETED` on the same REST app and set `PAYPAL_WEBHOOK_ID`. `/api/paypal/webhook` verifies original event/signature headers via PayPal and then re-fetches the associated order. The public Render demo protects `/api`, so live webhook delivery is unavailable there. The local full app can use return-page reconciliation without webhooks.
 
 API endpoints: `GET /api/health`, `GET /api/ai/status`, `POST /api/ai/invoice-draft`, invoice CRUD/status and dashboard routes; `GET /api/paypal/status`, `POST /api/invoices/:id/paypal/order` with only `{ "confirmed": true }`, `POST /api/invoices/:id/paypal/check` with `{ "orderId": "...", "capture": false }` (explicit true permits capture), and `POST /api/paypal/webhook`.
 
@@ -147,7 +148,7 @@ Review the staged diff for credentials, personal data, unrelated work and genera
 
 ## Free Render deployment
 
-The existing Render **Free Web Service** is `Paypilot-AI` at [paypilot-ai-3sho.onrender.com](https://paypilot-ai-3sho.onrender.com). `render.yaml` records the free configuration for future setup. Keep the existing service; a paid Blueprint or disk is unnecessary. Free instances spin down after inactivity, and local SQLite files are **ephemeral**. A restart, redeploy or platform move can erase invoices and payment records. Use synthetic demo data only; do not rely on this service for durable payment bookkeeping or real customers.
+The existing Render **Free Web Service** is `Paypilot-AI` at [paypilot-ai-3sho.onrender.com](https://paypilot-ai-3sho.onrender.com). `render.yaml` records the free configuration. The public frontend stores only manual drafts in each visitor's browser storage. It has no sign-in prompt and makes no API, Gemini or PayPal calls. Clearing browser storage removes those drafts; they do not sync across devices. The server's shared SQLite is ephemeral and inaccessible to the public UI. Use synthetic demo data only.
 
 Configure the existing service in Render from the repository root and `main` branch:
 
@@ -160,16 +161,17 @@ Configure the existing service in Render from the repository root and `main` bra
 | `HOST` / `PORT` | `0.0.0.0` / `3001` |
 | `CLIENT_ORIGIN` | `https://paypilot-ai-3sho.onrender.com` |
 | `DEMO_PASSWORD` | A private random string of at least 32 characters |
+| `VITE_PUBLIC_DEMO` | `true` |
 | `LOCAL_USER_EMAIL` / `INVOICE_TIMEZONE` | `owner@example.test` / `Asia/Kolkata` |
 | `PAYPAL_ENV` | `sandbox` |
 
-Set `DEMO_PASSWORD` in Render's private environment, never in GitHub or the client. Open the public URL over HTTPS and sign in to the browser's Basic prompt with username `paypilot` and that password. This protects a single shared demo; anyone with the password sees the same invoices. Render's health probe may receive 401; readiness should be judged by startup logs and an authenticated `/api/health` request. Missing Gemini or PayPal credentials leave those integrations disabled. Add those secrets in Render only if you intend to test them and have confirmed the ephemeral database risk.
+Set `DEMO_PASSWORD` in Render's private environment, never in GitHub or the client. It protects `/api`, while the built frontend is public and uses browser storage. Render's health probe may receive 401 on `/api/health`; use startup logs and an authenticated health request for backend checks. The local full app still uses SQLite and can use Gemini/PayPal when configured. Do not add payment credentials to the free public demo merely to show its UI.
 
-After pushing a reviewed commit, manually deploy the existing free service. Check Render logs for successful migration and listening on `0.0.0.0:3001`, then verify the password challenge, authenticated health, frontend, and synthetic invoice flow. The demo password gate also blocks unauthenticated PayPal webhooks; return-page verification remains the checkout path until a protected webhook exception is implemented and tested. A real PayPal Sandbox test requires valid Sandbox business/buyer accounts and must be explicitly reported as real only after provider approval, verified capture and database state have been observed. Do not use the free instance to retain the only record of a transaction.
+After pushing a reviewed commit, set `VITE_PUBLIC_DEMO=true` in the existing service's environment and rebuild/deploy. Verify the public landing and browser-only create/list/edit flow without a sign-in prompt, and verify `/api/health` still challenges unauthenticated requests. A real PayPal Sandbox test belongs in the protected local full app and must be reported as real only after provider approval, verified capture and database state have been observed.
 
 ## Verification and manual demo
 
-Free-demo repair verification: lint and frontend/backend TypeScript passed in `npm run check`; the first test run could not connect to loopback in the restricted shell. The same suite then passed **41 tests with zero failures** with loopback access, and `npm run build` passed both production builds. Automated tests use mocked Gemini/PayPal transports and real temporary migrated SQLite databases. Coverage includes the public Basic gate, confirmation, invoice validation/ownership, price tampering, capture verification, duplicates, lost responses, signature/replay handling and atomic rollback/recovery. Existing Lucide/Zod annotation warnings are non-fatal.
+No-sign-in demo verification: `VITE_PUBLIC_DEMO=true npm run check:client` passed lint, TypeScript and frontend build. The backend suite passed **41 tests with zero failures** after one Node import error from the new Vite flag was fixed. A local browser check created a synthetic manual draft, reviewed and confirmed it, reloaded it, reopened it for editing, and found it in the invoice list. The browser-only payment page reported that no PayPal order or payment can be created. The earlier Stage 6 build and mocked-provider test results remain separate from live provider testing.
 
 The earlier private Blueprint check and startup smoke result apply only to the prior paid configuration. The free service requires separate deployment verification. The automated suite now also checks public-origin password configuration and Basic access. No provider calls were made by tests.
 

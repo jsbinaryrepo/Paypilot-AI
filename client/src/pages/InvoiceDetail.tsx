@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Badge, Brand, ButtonLink, PageHeader } from "../components";
 import { formatDate, formatMoney, totalMinor, type DemoInvoice } from "../demo";
+import { publicDemo } from "../public-demo";
 
 export function InvoiceDetailPage({ invoice }: { invoice: DemoInvoice }) {
   return (
@@ -46,7 +47,7 @@ export function InvoiceDetailPage({ invoice }: { invoice: DemoInvoice }) {
           <div className="billing-grid">
             <div>
               <p className="eyebrow">FROM</p>
-              <h3>Local workspace</h3>
+              <h3>{publicDemo ? "Browser demo" : "Local workspace"}</h3>
 
               <span className="sample-label">
                 Sender details not configured
@@ -158,11 +159,15 @@ export function InvoiceDetailPage({ invoice }: { invoice: DemoInvoice }) {
             </div>
           </section>
           <section className="surface payment-unavailable">
-            <PayPalCheckout
-              invoiceId={invoice.id}
-              paid={invoice.status === "paid"}
-              cancelled={invoice.status === "cancelled"}
-            />
+            {publicDemo ? (
+              <p>Payment checkout is unavailable in this browser demo. No PayPal transaction can be made.</p>
+            ) : (
+              <PayPalCheckout
+                invoiceId={invoice.id}
+                paid={invoice.status === "paid"}
+                cancelled={invoice.status === "cancelled"}
+              />
+            )}
           </section>
           <section className="surface activity-panel">
             <div className="section-head">
@@ -199,7 +204,7 @@ export function InvoiceDetailPage({ invoice }: { invoice: DemoInvoice }) {
                   <small>
                     {invoice.status === "paid"
                       ? "Use payment verification for provider status"
-                      : "Saved in your local database"}
+                      : publicDemo ? "Saved in this browser only" : "Saved in your local database"}
                   </small>
                 </p>
               </div>
@@ -209,8 +214,9 @@ export function InvoiceDetailPage({ invoice }: { invoice: DemoInvoice }) {
             Create another draft <ArrowUpRight size={16} />
           </a>
           <p className="detail-info">
-            <Info size={14} /> Sample invoices and statuses are for interface
-            review only.
+            <Info size={14} /> {publicDemo
+              ? "Browser drafts are for demo use only. No client is contacted or payment processed."
+              : "Sample invoices and statuses are for interface review only."}
           </p>
         </aside>
       </div>

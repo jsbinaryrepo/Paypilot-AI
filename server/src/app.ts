@@ -41,7 +41,7 @@ export function createApp(
     const expected = createHash("sha256")
       .update(`Basic ${Buffer.from(`paypilot:${demoPassword}`).toString("base64")}`)
       .digest();
-    app.use((req, res, next) => {
+    app.use("/api", (req, res, next) => {
       const supplied = createHash("sha256").update(req.headers.authorization ?? "").digest();
       if (!timingSafeEqual(supplied, expected)) {
         res.setHeader("WWW-Authenticate", 'Basic realm="PayPilot Demo"');

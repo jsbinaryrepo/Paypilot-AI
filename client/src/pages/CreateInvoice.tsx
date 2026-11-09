@@ -19,6 +19,7 @@ import { type ExtractionResult } from "../../../shared/ai-invoice";
 import { api } from "../api";
 import { ButtonLink, PageHeader } from "../components";
 import { formatMoney, type DemoInvoice } from "../demo";
+import { publicDemo } from "../public-demo";
 
 const draftSchema = z
   .object({
@@ -70,6 +71,7 @@ export function CreateInvoicePage({
   const generationLock = useRef(false);
   const controller = useRef<AbortController | null>(null);
   useEffect(() => {
+    if (publicDemo) return;
     let active = true;
     api<{ configured: boolean }>("/ai/status")
       .then((status) => {
@@ -107,7 +109,7 @@ export function CreateInvoicePage({
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   async function generate() {
-    if (generationLock.current || saving) return;
+    if (publicDemo || generationLock.current || saving) return;
     generationLock.current = true;
     setGenerating(true);
     setPending(null);
@@ -247,10 +249,10 @@ export function CreateInvoicePage({
         description="Bring the details together. Review everything before taking the next step."
       >
         <span className="subtle-tag">
-          <LockKeyhole size={13} /> Local database
+          <LockKeyhole size={13} /> {publicDemo ? "Browser demo" : "Local database"}
         </span>
       </PageHeader>
-      {!invoice && (
+      {!invoice && !publicDemo && (
         <section className="ai-composer surface">
           <div className="section-head">
             <div className="flex items-center gap-3">
@@ -260,13 +262,13 @@ export function CreateInvoicePage({
               <div>
                 <h2>Describe it. Make it yours.</h2>
                 <p>
-                  AI invoice workspace{" "}
+                  {publicDemo ? "Manual invoice workspace" : "AI invoice workspace"}{" "}
                   <span className="coming-soon">Extract · Edit · Confirm</span>
                 </p>
               </div>
             </div>
             <span className="subtle-tag">
-              {aiConfigured === false ? "AI NOT CONFIGURED" : "GEMINI AI"}
+              {publicDemo ? "AI UNAVAILABLE" : aiConfigured === false ? "AI NOT CONFIGURED" : "GEMINI AI"}
             </span>
           </div>
           <div className="composer-body">
@@ -287,8 +289,9 @@ export function CreateInvoicePage({
             />
             <div className="prompt-bottom">
               <span>
-                <CircleHelp size={13} /> Only the text you submit is sent to
-                Google Gemini. Review it before generating.
+                <CircleHelp size={13} /> {publicDemo
+                  ? "This demo does not send prompts to Gemini. Use the manual fields below."
+                  : "Only the text you submit is sent to Google Gemini. Review it before generating."}
               </span>
               <button
                 type="button"

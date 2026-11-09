@@ -23,6 +23,8 @@ services:
         value: file:./dev.db
       - key: CLIENT_ORIGIN
         value: https://paypilot-ai-3sho.onrender.com
+      - key: VITE_PUBLIC_DEMO
+        value: "true"
       - key: DEMO_PASSWORD
         sync: false
       - key: LOCAL_USER_EMAIL

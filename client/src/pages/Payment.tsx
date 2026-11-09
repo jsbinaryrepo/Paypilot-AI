@@ -3,6 +3,7 @@ import { Clock3, ShieldCheck } from "lucide-react";
 import { ButtonLink } from "../components";
 import { api } from "../api";
 import { startCheckout } from "../paypal";
+import { publicDemo } from "../public-demo";
 
 export function PaymentPage({ cancelled }: { cancelled: boolean }) {
   const search = new URLSearchParams(window.location.search);
@@ -35,7 +36,7 @@ export function PaymentPage({ cancelled }: { cancelled: boolean }) {
     }
   }
   useEffect(() => {
-    if (invoice && orderId) void verify(false);
+    if (!publicDemo && invoice && orderId) void verify(false);
   }, [invoice, orderId]);
   async function retry() {
     if (!invoice) return;
@@ -52,6 +53,16 @@ export function PaymentPage({ cancelled }: { cancelled: boolean }) {
     }
   }
   const paid = status === "PAID";
+  if (publicDemo)
+    return (
+      <div className="payment-page">
+        <section className="payment-state surface">
+          <h1>Payments are unavailable in this browser demo.</h1>
+          <p>No PayPal order or payment is created here.</p>
+          <ButtonLink href="#/invoices">Back to invoices</ButtonLink>
+        </section>
+      </div>
+    );
   return (
     <div className="payment-page">
       <div className="payment-route-label">

@@ -19,6 +19,7 @@ import {
   type DemoInvoice,
   type Status,
 } from "../demo";
+import { publicDemo } from "../public-demo";
 
 const filters: { label: string; value: Status | "all" }[] = [
   { label: "All invoices", value: "all" },
@@ -207,8 +208,9 @@ export function InvoicesPage({ invoices }: { invoices: DemoInvoice[] }) {
         </div>
       </section>
       <p className="list-footnote">
-        Invoices are saved in your local database. Nothing is sent to your
-        clients.
+        {publicDemo
+          ? "Drafts are saved only in this browser. Nothing is sent to clients or PayPal."
+          : "Invoices are saved in your local database. Nothing is sent to your clients."}
       </p>
     </>
   );

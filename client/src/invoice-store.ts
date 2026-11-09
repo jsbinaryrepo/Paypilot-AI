@@ -6,6 +6,33 @@ import {
 } from "../../shared/invoices";
 import { api } from "./api";
 import { totalMinor, type DemoInvoice, type Status } from "./demo";
+import { publicDemo } from "./public-demo";
+import { z } from "zod";
+
+const demoStorageKey = "paypilot-public-demo-invoices-v1";
+const demoInvoiceSchema = z.object({
+  id: z.string(),
+  number: z.string(),
+  client: z.string(),
+  email: z.string(),
+  company: z.string(),
+  color: z.string(),
+  status: z.literal("draft"),
+  issued: z.string(),
+  due: z.string(),
+  currency: z.enum(["USD", "EUR", "GBP", "INR"]),
+  version: z.number().int().positive(),
+  items: z.array(z.object({ description: z.string(), quantity: z.number(), rateMinor: z.number() })),
+  notes: z.string(),
+});
+
+function loadBrowserInvoices(): DemoInvoice[] {
+  const stored = window.localStorage.getItem(demoStorageKey);
+  if (!stored) return [];
+  const parsed = z.array(demoInvoiceSchema).safeParse(JSON.parse(stored));
+  if (!parsed.success) throw new Error("Browser demo invoices could not be read.");
+  return parsed.data;
+}
 
 export function toView(invoice: Invoice): DemoInvoice {
   const details = invoiceDetailsSchema.safeParse(invoice.details);
@@ -45,6 +72,7 @@ export function toView(invoice: Invoice): DemoInvoice {
   };
 }
 export async function loadInvoices(): Promise<DemoInvoice[]> {
+  if (publicDemo) return loadBrowserInvoices();
   const result: DemoInvoice[] = [];
   let page = 1;
   let total = 0;
@@ -59,6 +87,19 @@ export async function loadInvoices(): Promise<DemoInvoice[]> {
   return result;
 }
 export async function saveInvoice(invoice: DemoInvoice): Promise<DemoInvoice> {
+  if (publicDemo) {
+    const current = loadBrowserInvoices();
+    const saved: DemoInvoice = {
+      ...invoice,
+      status: "draft",
+      version: (current.find((item) => item.id === invoice.id)?.version ?? 0) + 1,
+    };
+    window.localStorage.setItem(
+      demoStorageKey,
+      JSON.stringify([saved, ...current.filter((item) => item.id !== saved.id)]),
+    );
+    return saved;
+  }
   const input = invoiceSchema.parse({
     clientName: invoice.client,
     clientEmail: invoice.email,

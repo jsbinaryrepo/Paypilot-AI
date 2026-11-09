@@ -442,6 +442,7 @@ test("public demo requires Basic access before serving API data", async () => {
     const denied = await fetch(url);
     assert.equal(denied.status, 401);
     assert.match(denied.headers.get("www-authenticate") ?? "", /Basic/);
+    assert.equal((await fetch(url.replace("/api/health", "/"))).status, 404);
     assert.equal((await fetch(url, { headers: { Authorization: "Basic " + Buffer.from("paypilot:wrong").toString("base64") } })).status, 401);
     assert.equal((await fetch(url, { headers: { Authorization: "Basic " + Buffer.from(`paypilot:${password}`).toString("base64") } })).status, 200);
   } finally {

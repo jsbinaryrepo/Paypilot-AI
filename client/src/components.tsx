@@ -24,6 +24,7 @@ import {
   type DemoInvoice,
   type Status,
 } from "./demo";
+import { publicDemo } from "./public-demo";
 
 export function Brand({ dark = false }: { dark?: boolean }) {
   return (
@@ -261,7 +262,7 @@ export function AppLayout({
         <div className="workspace-picker">
           <span className="workspace-logo">S</span>
           <span>
-            Studio workspace<small>Local workspace</small>
+            Studio workspace<small>{publicDemo ? "Browser demo" : "Local workspace"}</small>
           </span>
         </div>
         <p className="nav-label">WORKSPACE</p>
@@ -281,11 +282,11 @@ export function AppLayout({
               >
                 <Icon size={19} />
                 <span>{label}</span>
-                {href === "#/create" && <span className="nav-pill">AI</span>}
+                {href === "#/create" && !publicDemo && <span className="nav-pill">AI</span>}
               </a>
             );
           })}
-          <button
+          {!publicDemo && <button
             className={`nav-link ${route.startsWith("/payment/") ? "active" : ""}`}
             aria-expanded={returnsOpen}
             onClick={() => setReturnsOpen(!returnsOpen)}
@@ -296,8 +297,8 @@ export function AppLayout({
               size={14}
               className={returnsOpen ? "rotate-180" : ""}
             />
-          </button>
-          {returnsOpen && (
+          </button>}
+          {!publicDemo && returnsOpen && (
             <div className="subnav">
               <a
                 href="#/payment/success"
@@ -345,16 +346,16 @@ export function AppLayout({
           </button>
           {helpOpen && (
             <p className="sidebar-help">
-              Invoices are stored locally in SQLite. Gemini drafts require your
-              review and confirmation. This single-user workspace must remain
-              local. PayPal Sandbox checkout is available when configured.
+              {publicDemo
+                ? "Drafts stay in this browser only. Gemini and PayPal are unavailable. Clear browser storage to remove demo invoices."
+                : "Invoices are stored locally in SQLite. Gemini drafts require your review and confirmation. PayPal Sandbox checkout is available when configured."}
             </p>
           )}
           <div className="sidebar-user">
             <span className="avatar purple">AM</span>
             <div>
               <strong>Workspace owner</strong>
-              <small>Local account</small>
+              <small>{publicDemo ? "Browser demo" : "Local account"}</small>
             </div>
             <span className="online-dot" />
           </div>
@@ -386,11 +387,11 @@ export function AppLayout({
             <span className="topbar-divider" />
             <span className="preview-chip">
               <span />
-              Local mode
+              {publicDemo ? "Browser demo" : "Local mode"}
             </span>
             <span
               className="avatar purple small-avatar"
-              aria-label="Local workspace owner"
+              aria-label={publicDemo ? "Browser demo" : "Local workspace owner"}
             >
               AM
             </span>
@@ -398,10 +399,11 @@ export function AppLayout({
         </header>
         <main className="workspace-content">
           <div className="demo-notice">
-            <span className="demo-tag">LOCAL WORKSPACE</span>
+            <span className="demo-tag">{publicDemo ? "BROWSER DEMO" : "LOCAL WORKSPACE"}</span>
             <span>
-              Invoices are stored locally. AI output requires review. No payment
-              provider is connected.
+              {publicDemo
+                ? "Drafts stay in this browser. Gemini and PayPal are unavailable; no payment can be made."
+                : "Invoices are stored locally. AI output requires review. No payment provider is connected."}
             </span>
           </div>
           {children}

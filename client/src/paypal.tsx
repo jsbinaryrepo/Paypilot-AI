@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { CreditCard } from "lucide-react";
 import { api } from "./api";
+import { publicDemo } from "./public-demo";
 
 export async function startCheckout(invoiceId: string) {
+  if (publicDemo) throw new Error("PayPal checkout is unavailable in the browser demo.");
   const result = await api<{
     orderId: string;
     status: string;
@@ -39,6 +41,10 @@ export function PayPalCheckout({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
+    if (publicDemo) {
+      setConfigured(false);
+      return;
+    }
     api<{ configured: boolean }>("/paypal/status")
       .then((value) => setConfigured(value.configured))
       .catch(() => setError("Unable to check PayPal configuration."));
@@ -74,8 +80,9 @@ export function PayPalCheckout({
       </p>
       {configured === false && (
         <p role="status">
-          PayPal credentials are missing. Configure the server’s Sandbox client
-          ID, secret and merchant ID.
+          {publicDemo
+            ? "Payments are unavailable in this browser demo. No transaction can be made."
+            : "PayPal credentials are missing. Configure the server’s Sandbox client ID, secret and merchant ID."}
         </p>
       )}
       <button

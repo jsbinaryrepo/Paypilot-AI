@@ -2,7 +2,7 @@
 
 ## Current free demo deployment
 
-The user chose Render Free for the existing web service. The public URL requires a server-side HTTP Basic password gate, configured only through `DEMO_PASSWORD` in Render's private environment. The service uses ephemeral SQLite, so restarts and redeploys can erase invoices and payments. Use synthetic demo data only; do not claim durable payment records or production authentication. This deployment decision supersedes the earlier private paid Blueprint guidance below.
+The user chose Render Free for the existing web service and a no-sign-in public preview. Set `VITE_PUBLIC_DEMO=true` at build time: visitors create manual drafts in their own browser storage, and Gemini/PayPal are unavailable there. Keep the server `/api` behind the `DEMO_PASSWORD` gate and never expose the shared SQLite database or Gemini key to unauthenticated visitors. The free service's SQLite is ephemeral. The local full app remains separate. This decision supersedes the earlier private paid Blueprint guidance below.
 
 ## Current authorized stage
 

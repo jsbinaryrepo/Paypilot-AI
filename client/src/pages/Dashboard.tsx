@@ -22,6 +22,7 @@ import {
   totalMinor,
   type DemoInvoice,
 } from "../demo";
+import { publicDemo } from "../public-demo";
 
 function RevenueChart({
   received,
@@ -159,7 +160,7 @@ export function DashboardPage({ invoices }: { invoices: DemoInvoice[] }) {
             <span>
               <i className="legend-dot outstanding" /> Outstanding
             </span>
-            <span className="legend-note">Local database records</span>
+            <span className="legend-note">{publicDemo ? "Browser-only drafts" : "Local database records"}</span>
           </div>
         </section>
         <section className="quick-create">
@@ -188,7 +189,7 @@ export function DashboardPage({ invoices }: { invoices: DemoInvoice[] }) {
           <ButtonLink href="#/create">
             Create a draft <ArrowRight size={16} />
           </ButtonLink>
-          <small>AI drafts always require your review and confirmation.</small>
+          <small>{publicDemo ? "Browser demo: manual drafts only." : "AI drafts always require your review and confirmation."}</small>
         </section>
       </div>
       <section className="surface">
@@ -207,7 +208,7 @@ export function DashboardPage({ invoices }: { invoices: DemoInvoice[] }) {
         <InvoiceTable invoices={scoped.slice(0, 5)} />
         <div className="table-bottom">
           <span>
-            <span className="tiny-dot" /> Local database
+            <span className="tiny-dot" /> {publicDemo ? "Browser storage" : "Local database"}
           </span>
           <a href="#/create">
             <Plus size={14} /> New draft
