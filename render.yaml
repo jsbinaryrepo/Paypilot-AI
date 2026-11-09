@@ -1,0 +1,45 @@
+# Private hackathon workspace: no public URL or unauthenticated public API.
+# See README before provisioning paid compute and persistent storage.
+services:
+  - type: pserv
+    name: paypilot-ai
+    runtime: node
+    plan: 0.5c-512mb
+    numInstances: 1
+    autoDeployTrigger: off
+    buildCommand: npm ci --include=dev && npm run db:generate && npm run build
+    # The disk is available at runtime, not during build or pre-deploy.
+    startCommand: node dist/server/src/migrate.js && npm start
+    disk:
+      name: paypilot-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: 24.14.0
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: "3001"
+      - key: DATABASE_URL
+        value: file:/var/data/paypilot.db
+      - key: CLIENT_ORIGIN
+        value: http://127.0.0.1:3001
+      - key: LOCAL_USER_EMAIL
+        value: owner@example.test
+      - key: INVOICE_TIMEZONE
+        value: Asia/Kolkata
+      - key: PAYPAL_ENV
+        value: sandbox
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        sync: false
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_MERCHANT_ID
+        sync: false

@@ -147,3 +147,9 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Local SQLite data (keep Prisma migrations tracked)
+*.db
+*.db-journal
+*.db-shm
+*.db-wal

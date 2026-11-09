@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  name      String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  invoices  Invoice[]
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  clientName     String
+  clientEmail    String
+  description    String
+  details        Json?
+  amountMinor    Int
+  currency       String
+  dueDate        DateTime
+  status         InvoiceStatus @default(DRAFT)
+  version        Int           @default(1)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  payments       Payment[]
+  checkout       Checkout?
+
+  @@index([userId, createdAt])
+  @@index([userId, status, dueDate])
+}
+
+model Payment {
+  id          String        @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  amountMinor Int
+  currency    String
+  status      PaymentStatus @default(PENDING)
+  method      String        @default("MANUAL")
+  reference   String?       @unique
+  paypalInvoiceId String?   @unique
+  paidAt      DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([invoiceId, status])
+}
+
+model Checkout {
+  id String @id @default(cuid())
+  invoiceId String @unique
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  orderId String? @unique
+  createKey String @unique
+  captureKey String @unique
+  createdAt DateTime @default(now())
+  busyUntil DateTime @default(now())
+}
