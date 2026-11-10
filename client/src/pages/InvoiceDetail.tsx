@@ -7,12 +7,14 @@ import {
   Download,
   FileText,
   Info,
+  Mail,
   Pencil,
   ShieldCheck,
 } from "lucide-react";
 import { Badge, Brand, ButtonLink, PageHeader } from "../components";
 import { formatDate, formatMoney, totalMinor, type DemoInvoice } from "../demo";
 import { publicDemo } from "../public-demo";
+import { invoiceEmailHref } from "../invoice-email";
 
 export function InvoiceDetailPage({ invoice }: { invoice: DemoInvoice }) {
   return (
@@ -24,6 +26,9 @@ export function InvoiceDetailPage({ invoice }: { invoice: DemoInvoice }) {
         title={invoice.number}
         description={`${invoice.company || invoice.client} · Saved invoice`}
       >
+        <a className="btn btn-secondary" href={invoiceEmailHref(invoice)}>
+          <Mail size={16} /> Compose email
+        </a>
         <button className="btn btn-secondary" onClick={() => window.print()}>
           <Download size={16} /> Print / Save PDF
         </button>
@@ -215,8 +220,8 @@ export function InvoiceDetailPage({ invoice }: { invoice: DemoInvoice }) {
           </a>
           <p className="detail-info">
             <Info size={14} /> {publicDemo
-              ? "Browser drafts are for demo use only. No client is contacted or payment processed."
-              : "Sample invoices and statuses are for interface review only."}
+              ? "Compose email opens your email app. You must review and send it yourself; no payment is processed."
+              : "Compose email opens your email app. You must review and send it yourself."}
           </p>
         </aside>
       </div>

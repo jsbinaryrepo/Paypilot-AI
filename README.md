@@ -40,7 +40,7 @@ render.yaml             Free Render web service with temporary SQLite data
 AGENTS.md               Project rules and stage boundaries
 ```
 
-No individual user accounts, invoice emailing, live-money payments, refunds/reversal reconciliation or multi-user deployment is implemented. The public browser demo is not a payment service. The server's Basic gate protects its shared API; it is not production account security. Legacy manual bookkeeping in the local full app is distinct from verified PayPal payments.
+No individual user accounts, automatic invoice emailing, live-money payments, refunds/reversal reconciliation or multi-user deployment is implemented. An invoice's **Compose email** link prepares its details in the visitor's email app; the visitor must review and send it, and delivery is not tracked. The public browser demo is not a payment service. The server's Basic gate protects its shared API; it is not production account security. Legacy manual bookkeeping in the local full app is distinct from verified PayPal payments.
 
 ## Run locally
 

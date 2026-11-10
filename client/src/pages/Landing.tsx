@@ -20,6 +20,7 @@ import {
   Zap,
 } from "lucide-react";
 import { Brand, ButtonLink, DemoNotice } from "../components";
+import { publicDemo } from "../public-demo";
 
 export function LandingPage() {
   const [menu, setMenu] = useState(false);
@@ -39,7 +40,9 @@ export function LandingPage() {
           </a>
         </nav>
         <div className="landing-nav-actions">
-          <span className="landing-preview-label">Local workspace</span>
+          <span className="landing-preview-label">
+            {publicDemo ? "Browser demo" : "Local workspace"}
+          </span>
           <ButtonLink href="#/dashboard" variant="secondary">
             Open workspace <ArrowUpRight size={15} />
           </ButtonLink>
@@ -216,11 +219,13 @@ export function LandingPage() {
               <span className="feature-number">01</span>
               <h3>Start with the essentials</h3>
               <p>
-                Capture your client, scope, and pricing in a clean invoice
-                editor. Describe an invoice with Gemini, then edit and confirm
-                the extracted details.
+                {publicDemo
+                  ? "Capture your client, scope, and pricing in a clean invoice editor. Review and save a draft in this browser."
+                  : "Capture your client, scope, and pricing in a clean invoice editor. Describe an invoice with Gemini, then edit and confirm the extracted details."}
               </p>
-              <span className="feature-label">Manual drafts available</span>
+              <span className="feature-label">
+                {publicDemo ? "Browser-only drafts" : "Manual drafts available"}
+              </span>
             </article>
             <article>
               <span className="icon-tile blue">
@@ -253,9 +258,13 @@ export function LandingPage() {
               <span className="feature-number">04</span>
               <h3>Payments, thoughtfully</h3>
               <p>
-                PayPal Sandbox checkout uses server-verified captures. No real money is processed in Sandbox.
+                {publicDemo
+                  ? "Payments are unavailable in this public browser demo. No transaction is created."
+                  : "PayPal Sandbox checkout uses server-verified captures. No real money is processed in Sandbox."}
               </p>
-              <span className="feature-label">Sandbox integration</span>
+              <span className="feature-label">
+                {publicDemo ? "No checkout in demo" : "Sandbox integration"}
+              </span>
             </article>
           </div>
         </section>
