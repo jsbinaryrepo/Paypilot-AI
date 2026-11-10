@@ -22,8 +22,9 @@
     "test": "tsx --test --test-concurrency=1 server/src/*.test.ts",
     "build:server": "tsc -p tsconfig.server.json",
     "build:client": "tsc --noEmit -p client/tsconfig.json && vite build",
+    "build:owner": "vite build --config vite.owner.config.ts",
     "build": "npm run build:full",
-    "build:full": "npm run build:server && npm run build:client",
+    "build:full": "npm run build:server && npm run build:client && npm run build:owner",
     "check": "npm run check:full",
     "check:full": "npm run lint && npm run typecheck:all && npm test && npm run build:full",
     "start": "node dist/server/src/index.js"

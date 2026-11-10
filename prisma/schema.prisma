@@ -20,6 +20,11 @@ enum PaymentStatus {
   FAILED
 }
 
+enum InvoiceDeliveryStatus {
+  PENDING
+  ACCEPTED
+}
+
 model User {
   id        String    @id @default(cuid())
   email     String    @unique
@@ -46,9 +51,26 @@ model Invoice {
   updatedAt      DateTime      @updatedAt
   payments       Payment[]
   checkout       Checkout?
+  delivery       InvoiceDelivery?
 
   @@index([userId, createdAt])
   @@index([userId, status, dueDate])
+}
+
+model InvoiceDelivery {
+  id             String                @id @default(cuid())
+  invoiceId      String                @unique
+  invoice        Invoice               @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  status         InvoiceDeliveryStatus @default(PENDING)
+  idempotencyKey String                @unique
+  sender         String
+  recipient      String
+  subject        String
+  body           String
+  providerId     String?               @unique
+  startedAt      DateTime              @default(now())
+  busyUntil      DateTime              @default(now())
+  acceptedAt     DateTime?
 }
 
 model Payment {

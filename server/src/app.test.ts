@@ -60,6 +60,7 @@ before(async () => {
 });
 beforeEach(async () => {
   await db.payment.deleteMany();
+  await db.invoiceDelivery.deleteMany();
   await db.invoice.deleteMany();
 });
 after(async () => {
@@ -443,8 +444,17 @@ test("public demo requires Basic access before serving API data", async () => {
     assert.equal(denied.status, 401);
     assert.match(denied.headers.get("www-authenticate") ?? "", /Basic/);
     assert.equal((await fetch(url.replace("/api/health", "/"))).status, 404);
+    assert.equal((await fetch(url.replace("/api/health", "/owner/"))).status, 401);
     assert.equal((await fetch(url, { headers: { Authorization: "Basic " + Buffer.from("paypilot:wrong").toString("base64") } })).status, 401);
     assert.equal((await fetch(url, { headers: { Authorization: "Basic " + Buffer.from(`paypilot:${password}`).toString("base64") } })).status, 200);
+    const ownerPage = await fetch(url.replace("/api/health", "/owner/"), {
+      headers: { Authorization: "Basic " + Buffer.from(`paypilot:${password}`).toString("base64") },
+    });
+    const cookie = ownerPage.headers.get("set-cookie")?.split(";")[0];
+    assert.ok(cookie?.startsWith("paypilot_owner="));
+    assert.match(ownerPage.headers.get("set-cookie") ?? "", /HttpOnly/);
+    assert.match(ownerPage.headers.get("set-cookie") ?? "", /Secure/);
+    assert.equal((await fetch(url, { headers: { Cookie: cookie } })).status, 200);
   } finally {
     demo.close();
     demo.closeAllConnections();
@@ -470,6 +480,20 @@ test("existing editor details persist and mismatched totals are rejected", async
       .status,
     400,
   );
+});
+
+test("invoice email requires explicit confirmation and server credentials", async () => {
+  const invoice = await create();
+  const url = `/invoices/${invoice.id}/email`;
+  assert.deepEqual(await (await request(url)).json(), {
+    configured: false,
+    status: "NOT_SENT",
+    recipient: draft.clientEmail,
+    acceptedAt: null,
+  });
+  assert.equal((await request(`${url}/send`, "POST", { version: 1 })).status, 400);
+  assert.equal((await request(`${url}/send`, "POST", { confirmed: true, version: 1 })).status, 503);
+  assert.equal(await db.invoiceDelivery.count(), 0);
 });
 
 test("AI route returns clarification without writing; reviewed confirmed values create a draft", async () => {

@@ -16,7 +16,7 @@ export async function startCheckout(invoiceId: string) {
   });
   if (["APPROVED", "COMPLETED"].includes(result.status)) {
     window.location.assign(
-      `/?invoice=${encodeURIComponent(invoiceId)}&token=${encodeURIComponent(result.orderId)}#/payment/success`,
+      `${window.location.pathname}?invoice=${encodeURIComponent(invoiceId)}&token=${encodeURIComponent(result.orderId)}#/payment/success`,
     );
   } else if (
     result.approvalUrl &&

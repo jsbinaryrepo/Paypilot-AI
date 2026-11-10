@@ -1,9 +1,10 @@
 import express, { type ErrorRequestHandler } from "express";
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { extractionRequestSchema } from "../../shared/ai-invoice.js";
 import { PayPal, PaymentError } from "./services/paypal.js";
+import { InvoiceEmail, InvoiceEmailError } from "./services/invoice-email.js";
 import {
   AiError,
   createInvoiceAi,
@@ -34,18 +35,45 @@ export function createApp(
   ai: InvoiceAi = createInvoiceAi(),
   paypal: PayPal = new PayPal(db, { origin: clientOrigin }),
   demoPassword?: string,
+  email: InvoiceEmail = new InvoiceEmail(db, {}),
 ) {
   const app = express();
   app.disable("x-powered-by");
   if (demoPassword) {
+    const cookieName = "paypilot_owner";
+    const sessionDurationMs = 12 * 60 * 60 * 1000;
     const expected = createHash("sha256")
       .update(`Basic ${Buffer.from(`paypilot:${demoPassword}`).toString("base64")}`)
       .digest();
-    app.use("/api", (req, res, next) => {
+    const signature = (expires: string) =>
+      createHmac("sha256", demoPassword).update(expires).digest("base64url");
+    app.use(["/api", "/owner"], (req, res, next) => {
       const supplied = createHash("sha256").update(req.headers.authorization ?? "").digest();
-      if (!timingSafeEqual(supplied, expected)) {
+      const basic = timingSafeEqual(supplied, expected);
+      const token = req.headers.cookie
+        ?.split(";")
+        .map((part) => part.trim())
+        .find((part) => part.startsWith(`${cookieName}=`))
+        ?.slice(cookieName.length + 1);
+      const [expires = "", mac = ""] = token?.split(".") ?? [];
+      const validTime = /^\d{13}$/.test(expires) && Number(expires) > Date.now() &&
+        Number(expires) <= Date.now() + sessionDurationMs;
+      const session = req.baseUrl === "/api" && validTime &&
+        mac.length === signature(expires).length &&
+        timingSafeEqual(Buffer.from(mac), Buffer.from(signature(expires)));
+      if (!basic && !session) {
         res.setHeader("WWW-Authenticate", 'Basic realm="PayPilot Demo"');
         return res.status(401).end();
+      }
+      if (basic && req.baseUrl === "/owner") {
+        const expiry = String(Date.now() + sessionDurationMs);
+        res.cookie(cookieName, `${expiry}.${signature(expiry)}`, {
+          httpOnly: true,
+          secure: clientOrigin.startsWith("https://"),
+          sameSite: "strict",
+          path: "/api",
+          maxAge: sessionDurationMs,
+        });
       }
       next();
     });
@@ -123,6 +151,17 @@ export function createApp(
     await db.$queryRaw`SELECT 1`;
     res.json({ status: "ok", database: "connected", mode: "local" });
   });
+  app.get("/api/invoices/:id/email", async (req, res) => {
+    res.json(await email.status(idSchema.parse(req.params.id), userId));
+  });
+  app.post("/api/invoices/:id/email/send", async (req, res) => {
+    const { confirmed, version } = z.object({
+      confirmed: z.literal(true),
+      version: z.number().int().positive(),
+    }).strict().parse(req.body);
+    void confirmed;
+    res.json(await email.send(idSchema.parse(req.params.id), userId, version));
+  });
   app.post("/api/invoices", async (req, res) => {
     const { confirmed: _confirmed, ...input } = createInvoiceSchema.parse(
       req.body,
@@ -168,6 +207,8 @@ export function createApp(
       if (!existing) throw new HttpError(404, "Invoice not found.");
       if (existing.status !== "DRAFT")
         throw new HttpError(409, "Only draft invoices can be edited.");
+      if (await tx.invoiceDelivery.findUnique({ where: { invoiceId: id } }))
+        throw new HttpError(409, "Invoice has an email send in progress. Check its status before editing.");
       const updated = await tx.invoice.updateMany({
         where: { id, userId, status: "DRAFT", version },
         data: {
@@ -193,6 +234,8 @@ export function createApp(
           409,
           "Invoice is locked by a PayPal checkout. Reconcile the payment before changing it.",
         );
+      if ((await tx.invoiceDelivery.findUnique({ where: { invoiceId: id } }))?.status === "PENDING")
+        throw new HttpError(409, "Invoice email outcome is pending. Check it before changing the invoice.");
       if (!transitions[existing.status].includes(status))
         throw new HttpError(409, "This status transition is not allowed.");
       const result = await tx.invoice.updateMany({
@@ -282,6 +325,7 @@ export function createApp(
     } else if (
       error instanceof AiError ||
       error instanceof HttpError ||
+      error instanceof InvoiceEmailError ||
       error instanceof PaymentError
     ) {
       res.status(error.status).json({ error: error.message });
@@ -296,7 +340,7 @@ export function createApp(
       res.status(413).json({ error: "Request body too large." });
     } else if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
-      ["P1008", "P2028", "P2034"].includes(error.code)
+      ["P1008", "P2002", "P2028", "P2034"].includes(error.code)
     ) {
       res.status(409).json({ error: "Database busy. Reload and retry." });
     } else {

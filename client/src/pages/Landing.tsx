@@ -288,6 +288,7 @@ export function LandingPage() {
       <footer className="landing-footer">
         <Brand />
         <span>Thoughtfully built for independent work.</span>
+        {publicDemo && <a href="/owner/">Owner workspace</a>}
         <a href="#/dashboard">
           Explore preview <ArrowUpRight size={14} />
         </a>

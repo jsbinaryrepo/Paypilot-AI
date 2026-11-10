@@ -19,6 +19,8 @@ export const configSchema = z.object({
   PAYPAL_WEBHOOK_ID: z.string().trim().optional(),
   PAYPAL_ENV: z.literal("sandbox").default("sandbox"),
   GEMINI_API_KEY: z.string().trim().optional(),
+  RESEND_API_KEY: z.string().trim().optional(),
+  EMAIL_FROM: z.email().optional().or(z.literal("")),
   GEMINI_MODEL: z
     .string()
     .trim()

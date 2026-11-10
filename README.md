@@ -2,7 +2,7 @@
 
 PayPilot AI helps freelancers turn a written request into a reviewed invoice and collect a PayPal Sandbox payment. It uses React, TypeScript, Vite, Tailwind CSS and Lucide for the interface; Express, Prisma and SQLite for the API and storage; the official Google Gen AI SDK for extraction; and PayPal REST Orders v2 for checkout.
 
-**Status:** Stages 1–6 are implemented. The free Render site is a no-sign-in, browser-only manual invoice demo. Drafts stay in each visitor's browser; Gemini, PayPal and the shared server database are unavailable to that public UI. The server `/api` remains password protected. No live Gemini request, real PayPal Sandbox transaction, or live webhook delivery has been verified.
+**Status:** Stages 1–6 are implemented. The free Render homepage remains a no-sign-in browser demo with local drafts. A separate `/owner/` build uses the protected server database and has an optional invoice email send action. Automatic delivery requires a verified sender address and `RESEND_API_KEY`; no live delivery is claimed. Gemini, PayPal and the database remain unavailable to anonymous visitors. No live Gemini request, real PayPal Sandbox transaction, or live webhook delivery has been verified.
 
 ## Implemented scope and architecture
 
@@ -40,7 +40,7 @@ render.yaml             Free Render web service with temporary SQLite data
 AGENTS.md               Project rules and stage boundaries
 ```
 
-No individual user accounts, automatic invoice emailing, live-money payments, refunds/reversal reconciliation or multi-user deployment is implemented. An invoice's **Compose email** link prepares its details in the visitor's email app; the visitor must review and send it, and delivery is not tracked. The public browser demo is not a payment service. The server's Basic gate protects its shared API; it is not production account security. Legacy manual bookkeeping in the local full app is distinct from verified PayPal payments.
+No individual user accounts, live-money payments, refunds/reversal reconciliation or multi-user deployment is implemented. The public demo's **Compose email** link opens the visitor's email app; the visitor must send it. The owner workspace can submit the saved invoice through Resend after confirmation when configured. Provider acceptance is recorded, but inbox delivery is not tracked. The public browser demo is not a payment service. The server's Basic gate protects `/owner/` and `/api`; it is a single shared owner gate, not production account security. Legacy manual bookkeeping in the local full app is distinct from verified PayPal payments.
 
 ## Run locally
 
@@ -78,7 +78,7 @@ Open `http://127.0.0.1:3001`. Restore origin port 5173 before returning to Vite 
 
 ## Environment variables
 
-All values belong in the ignored root `.env` locally or Render's server environment. Never add secrets to `VITE_*`, GitHub, screenshots, logs or the video. `.env.example` contains placeholders. No frontend environment variables are required.
+Server secrets belong in the ignored root `.env` locally or Render's private environment. Never add secrets to `VITE_*`, GitHub, screenshots, logs or the video. `.env.example` contains placeholders. `VITE_PUBLIC_DEMO` is a public build-time flag for the anonymous frontend.
 
 | Variable | Required / default | Local / Render configuration |
 | --- | --- | --- |
@@ -91,6 +91,8 @@ All values belong in the ignored root `.env` locally or Render's server environm
 | `LOCAL_USER_EMAIL` | Default `owner@example.test` | Stable local owner identity, **not authentication**. Changing it selects/creates another owner; it does not transfer invoices. |
 | `GEMINI_API_KEY` | Required for AI only | Server secret from your Google AI project; blank disables AI. |
 | `GEMINI_MODEL` | Required for AI only | A model ID available to your project supporting structured JSON; the example value is illustrative, not verified account access. |
+| `RESEND_API_KEY` | Required for automatic email only | Secret API key for the owner's Resend account. Never place it in `VITE_*`. |
+| `EMAIL_FROM` | Required for automatic email only | Email address on a sender domain verified in the same Resend account. |
 | `INVOICE_TIMEZONE` | Default `Asia/Kolkata` | Valid IANA timezone used to resolve relative due dates. |
 | `PAYPAL_ENV` | Only `sandbox`; default | Production mode is rejected. |
 | `PAYPAL_CLIENT_ID` | Required for PayPal only | Sandbox REST application's client ID. |
@@ -101,6 +103,12 @@ All values belong in the ignored root `.env` locally or Render's server environm
 | `NODE_ENV` | Render `production` | Platform/runtime setting; development scripts work without it. |
 
 Missing AI credentials preserve manual invoice entry. Missing PayPal credentials disable checkout and return a clear server configuration error. Invalid configuration reports variable names without their values. Server-origin validation remains restricted even when `HOST=0.0.0.0`.
+
+### Owner invoice email
+
+The public browser demo does not automatically send email. At `/owner/`, the existing Basic password gate protects the server-backed workspace. The owner reviews a saved invoice and confirms **Send invoice email**. The server uses its saved recipient, items, amount, currency and due date; it sends a plain-text email through Resend's HTTPS API. A unique database record and provider idempotency key prevent duplicate submission in the tested retry path. A provider acceptance updates a draft to `ISSUED`; it does **not** prove delivery to the recipient's inbox. An uncertain send is retried with the same key for up to 23 hours, after which the owner must reconcile it in Resend before any new attempt. Do not use real client data on the Free service: its SQLite records disappear on restarts and redeploys.
+
+To configure the optional send action, create a [Resend account](https://resend.com/), [verify a sending domain](https://resend.com/docs/dashboard/domains/introduction), and create a sending API key. Set `RESEND_API_KEY` and `EMAIL_FROM` in the server environment or ignored local `.env`, then restart or redeploy. The free Render service cannot use ordinary SMTP ports, so this integration uses HTTPS. Send a synthetic test invoice to an address you control, verify its provider record and receipt, and record that result separately from mocked tests. Do not paste the API key into chat or GitHub.
 
 ### Gemini configuration and behavior
 
@@ -148,7 +156,7 @@ Review the staged diff for credentials, personal data, unrelated work and genera
 
 ## Free Render deployment
 
-The existing Render **Free Web Service** is `Paypilot-AI` at [paypilot-ai-3sho.onrender.com](https://paypilot-ai-3sho.onrender.com). `render.yaml` records the free configuration. The public frontend stores only manual drafts in each visitor's browser storage. It has no sign-in prompt and makes no API, Gemini or PayPal calls. Clearing browser storage removes those drafts; they do not sync across devices. The server's shared SQLite is ephemeral and inaccessible to the public UI. Use synthetic demo data only.
+The existing Render **Free Web Service** is `Paypilot-AI` at [paypilot-ai-3sho.onrender.com](https://paypilot-ai-3sho.onrender.com). `render.yaml` records the free configuration. The public frontend stores only manual drafts in each visitor's browser storage. It has no sign-in prompt and makes no API, Gemini or PayPal calls. Clearing browser storage removes those drafts; they do not sync across devices. The server's shared SQLite is ephemeral and inaccessible to the public UI. `/owner/` is a separate protected build for the single owner; its database records are temporary on Render Free. Use synthetic demo data only.
 
 Configure the existing service in Render from the repository root and `main` branch:
 
@@ -162,6 +170,7 @@ Configure the existing service in Render from the repository root and `main` bra
 | `CLIENT_ORIGIN` | `https://paypilot-ai-3sho.onrender.com` |
 | `DEMO_PASSWORD` | A private random string of at least 32 characters |
 | `VITE_PUBLIC_DEMO` | `true` |
+| `RESEND_API_KEY` / `EMAIL_FROM` | Optional; set only after verifying the owner's sender domain |
 | `LOCAL_USER_EMAIL` / `INVOICE_TIMEZONE` | `owner@example.test` / `Asia/Kolkata` |
 | `PAYPAL_ENV` | `sandbox` |
 

@@ -32,6 +32,7 @@ before(async () => {
 });
 beforeEach(async () => {
   await db.payment.deleteMany();
+  await db.invoiceDelivery.deleteMany();
   await db.checkout.deleteMany();
   await db.invoice.deleteMany();
   invoice = await db.invoice.create({

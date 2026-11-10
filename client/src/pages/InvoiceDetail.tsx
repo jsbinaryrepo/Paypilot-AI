@@ -15,6 +15,7 @@ import { Badge, Brand, ButtonLink, PageHeader } from "../components";
 import { formatDate, formatMoney, totalMinor, type DemoInvoice } from "../demo";
 import { publicDemo } from "../public-demo";
 import { invoiceEmailHref } from "../invoice-email";
+import { OwnerEmailSend } from "../owner-email";
 
 export function InvoiceDetailPage({ invoice }: { invoice: DemoInvoice }) {
   return (
@@ -26,9 +27,11 @@ export function InvoiceDetailPage({ invoice }: { invoice: DemoInvoice }) {
         title={invoice.number}
         description={`${invoice.company || invoice.client} · Saved invoice`}
       >
-        <a className="btn btn-secondary" href={invoiceEmailHref(invoice)}>
-          <Mail size={16} /> Compose email
-        </a>
+        {publicDemo ? (
+          <a className="btn btn-secondary" href={invoiceEmailHref(invoice)}>
+            <Mail size={16} /> Compose email
+          </a>
+        ) : null}
         <button className="btn btn-secondary" onClick={() => window.print()}>
           <Download size={16} /> Print / Save PDF
         </button>
@@ -163,6 +166,7 @@ export function InvoiceDetailPage({ invoice }: { invoice: DemoInvoice }) {
               </dl>
             </div>
           </section>
+          {!publicDemo && <OwnerEmailSend invoice={invoice} />}
           <section className="surface payment-unavailable">
             {publicDemo ? (
               <p>Payment checkout is unavailable in this browser demo. No PayPal transaction can be made.</p>
@@ -221,7 +225,7 @@ export function InvoiceDetailPage({ invoice }: { invoice: DemoInvoice }) {
           <p className="detail-info">
             <Info size={14} /> {publicDemo
               ? "Compose email opens your email app. You must review and send it yourself; no payment is processed."
-              : "Compose email opens your email app. You must review and send it yourself."}
+              : "Email delivery requires a configured provider. Acceptance by the provider does not prove inbox delivery."}
           </p>
         </aside>
       </div>

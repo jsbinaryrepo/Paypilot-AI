@@ -5,6 +5,7 @@ import { createApp } from "./app.js";
 import { readConfig } from "./config.js";
 import { PayPal } from "./services/paypal.js";
 import { createInvoiceAi } from "./services/gemini-invoice.js";
+import { InvoiceEmail } from "./services/invoice-email.js";
 
 const config = readConfig(process.env);
 const db = new PrismaClient({ datasourceUrl: config.DATABASE_URL });
@@ -28,10 +29,18 @@ try {
       secret: config.PAYPAL_CLIENT_SECRET,
       merchantId: config.PAYPAL_MERCHANT_ID,
       webhookId: config.PAYPAL_WEBHOOK_ID,
-      origin: config.CLIENT_ORIGIN,
+      origin: config.DEMO_PASSWORD && process.env.VITE_PUBLIC_DEMO === "true"
+        ? `${config.CLIENT_ORIGIN}/owner`
+        : config.CLIENT_ORIGIN,
     }),
     config.DEMO_PASSWORD,
+    new InvoiceEmail(db, {
+      apiKey: config.RESEND_API_KEY,
+      from: config.EMAIL_FROM,
+    }),
   );
+  if (config.DEMO_PASSWORD)
+    app.use("/owner", express.static(resolve("dist/owner-client")));
   app.use(express.static(resolve("dist/client")));
   const server = app.listen(config.PORT, config.HOST, () => {
     console.log(`PayPilot API listening on ${config.HOST}:${config.PORT}`);
