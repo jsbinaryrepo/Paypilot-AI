@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { Badge, Brand, ButtonLink, PageHeader } from "../components";
 import { formatDate, formatMoney, totalMinor, type DemoInvoice } from "../demo";
-import { publicDemo } from "../public-demo";
+import { guestMode, publicDemo } from "../public-demo";
 import { OwnerEmailSend } from "../owner-email";
 import { PayPalInvoiceSend } from "../paypal-invoice-send";
 
@@ -50,7 +50,7 @@ export function InvoiceDetailPage({ invoice }: { invoice: DemoInvoice }) {
           <div className="billing-grid">
             <div>
               <p className="eyebrow">FROM</p>
-              <h3>{publicDemo ? "Browser demo" : "Local workspace"}</h3>
+              <h3>{publicDemo ? "Browser demo" : guestMode ? "Guest workspace" : "Local workspace"}</h3>
 
               <span className="sample-label">
                 Sender details not configured
@@ -210,7 +210,7 @@ export function InvoiceDetailPage({ invoice }: { invoice: DemoInvoice }) {
                   <small>
                     {invoice.status === "paid"
                       ? "Use payment verification for provider status"
-                      : publicDemo ? "Saved in this browser only" : "Saved in your local database"}
+                      : publicDemo ? "Saved in this browser only" : "Saved in the database"}
                   </small>
                 </p>
               </div>

@@ -20,7 +20,7 @@ import {
   Zap,
 } from "lucide-react";
 import { Brand, ButtonLink, DemoNotice } from "../components";
-import { publicDemo } from "../public-demo";
+import { guestMode, publicDemo } from "../public-demo";
 
 export function LandingPage() {
   const [menu, setMenu] = useState(false);
@@ -41,7 +41,7 @@ export function LandingPage() {
         </nav>
         <div className="landing-nav-actions">
           <span className="landing-preview-label">
-            {publicDemo ? "Browser demo" : "Local workspace"}
+            {publicDemo ? "Browser demo" : guestMode ? "Guest workspace" : "Local workspace"}
           </span>
           {publicDemo && import.meta.env.VITE_ACCOUNTS_ENABLED === "true" &&
             <a href="/app/#/login" className="btn btn-primary">Sign in or create account</a>}

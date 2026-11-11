@@ -4,6 +4,7 @@ import { z } from "zod";
 export const configSchema = z.object({
   DATABASE_URL: z.string().regex(/^file:.+/),
   ACCOUNTS_ENABLED: z.enum(["true", "false"]).default("false"),
+  PUBLIC_GUEST_ACCESS: z.enum(["true", "false"]).default("false"),
   TURSO_DATABASE_URL: z.string().regex(/^libsql:\/\//).optional().or(z.literal("")),
   TURSO_AUTH_TOKEN: z.string().min(1).optional().or(z.literal("")),
   PORT: z.coerce.number().int().min(1).max(65535).default(3001),
@@ -14,7 +15,6 @@ export const configSchema = z.object({
       z.string().regex(/^https:\/\/[a-z0-9-]+\.onrender\.com$/),
     ])
     .default("http://127.0.0.1:5173"),
-  DEMO_PASSWORD: z.string().min(32).optional().or(z.literal("")),
   LOCAL_USER_EMAIL: z.email().default("owner@example.test"),
   PAYPAL_CLIENT_ID: z.string().trim().optional(),
   PAYPAL_CLIENT_SECRET: z.string().trim().optional(),
@@ -51,9 +51,8 @@ export function readConfig(env: NodeJS.ProcessEnv) {
       `Invalid configuration: ${result.error.issues.map((issue) => issue.path.join(".")).join(", ")}`,
     );
   }
-  if (result.data.CLIENT_ORIGIN.startsWith("https://") && !result.data.DEMO_PASSWORD)
-    if (result.data.ACCOUNTS_ENABLED !== "true")
-      throw new Error("Invalid configuration: DEMO_PASSWORD");
+  if (result.data.PUBLIC_GUEST_ACCESS === "true" && result.data.ACCOUNTS_ENABLED === "true")
+    throw new Error("Invalid configuration: PUBLIC_GUEST_ACCESS, ACCOUNTS_ENABLED");
   if (result.data.ACCOUNTS_ENABLED === "true" &&
       (!result.data.TURSO_DATABASE_URL || !result.data.TURSO_AUTH_TOKEN ||
        !result.data.RESEND_API_KEY || !result.data.EMAIL_FROM))

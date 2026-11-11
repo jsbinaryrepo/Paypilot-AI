@@ -24,7 +24,7 @@ import {
   type DemoInvoice,
   type Status,
 } from "./demo";
-import { publicDemo } from "./public-demo";
+import { guestMode, publicDemo } from "./public-demo";
 import { api } from "./api";
 const accountMode = import.meta.env.VITE_ACCOUNT_MODE === "true";
 
@@ -264,7 +264,7 @@ export function AppLayout({
         <div className="workspace-picker">
           <span className="workspace-logo">S</span>
           <span>
-            Studio workspace<small>{publicDemo ? "Browser demo" : accountMode ? "Your account" : "Local workspace"}</small>
+            Studio workspace<small>{publicDemo ? "Browser demo" : guestMode ? "Guest workspace" : accountMode ? "Your account" : "Local workspace"}</small>
           </span>
         </div>
         <p className="nav-label">WORKSPACE</p>
@@ -359,14 +359,16 @@ export function AppLayout({
                 ? "Drafts stay in this browser only. Gemini and PayPal are unavailable. Clear browser storage to remove demo invoices."
                 : accountMode
                   ? "Your invoices are stored in your account. Gemini drafts require review. New invoices are emailed after confirmation; PayPal needs your own merchant connection."
-                  : "Invoices are stored locally in SQLite. Gemini drafts require your review and confirmation. PayPal Sandbox checkout is available when configured."}
+                  : guestMode
+                    ? "Invoices are private to this browser session and saved on the server. Gemini and PayPal Sandbox are available when configured."
+                    : "Invoices are stored locally in SQLite. Gemini drafts require your review and confirmation. PayPal Sandbox checkout is available when configured."}
             </p>
           )}
           <div className="sidebar-user">
             <span className="avatar purple">AM</span>
             <div>
-              <strong>Workspace owner</strong>
-              <small>{publicDemo ? "Browser demo" : accountMode ? "Your account" : "Local account"}</small>
+              <strong>{guestMode ? "Guest workspace" : "Workspace owner"}</strong>
+              <small>{publicDemo ? "Browser demo" : guestMode ? "This browser" : accountMode ? "Your account" : "Local account"}</small>
             </div>
             <span className="online-dot" />
           </div>
@@ -398,11 +400,11 @@ export function AppLayout({
             <span className="topbar-divider" />
             <span className="preview-chip">
               <span />
-              {publicDemo ? "Browser demo" : accountMode ? "Your account" : "Local mode"}
+              {publicDemo ? "Browser demo" : guestMode ? "Guest workspace" : accountMode ? "Your account" : "Local mode"}
             </span>
             <span
               className="avatar purple small-avatar"
-              aria-label={publicDemo ? "Browser demo" : "Local workspace owner"}
+              aria-label={publicDemo ? "Browser demo" : guestMode ? "Guest workspace" : "Local workspace owner"}
             >
               AM
             </span>
@@ -410,11 +412,13 @@ export function AppLayout({
         </header>
         <main className="workspace-content">
           <div className="demo-notice">
-            <span className="demo-tag">{publicDemo ? "BROWSER DEMO" : accountMode ? "YOUR ACCOUNT" : "LOCAL WORKSPACE"}</span>
+            <span className="demo-tag">{publicDemo ? "BROWSER DEMO" : guestMode ? "GUEST WORKSPACE" : accountMode ? "YOUR ACCOUNT" : "LOCAL WORKSPACE"}</span>
             <span>
               {publicDemo
                 ? "Drafts stay in this browser. Gemini and PayPal are unavailable; no payment can be made."
-                : accountMode
+                : guestMode
+                  ? "Your invoices are saved on the server for this browser. Review AI output before creating; PayPal Sandbox and email require server credentials."
+                  : accountMode
                   ? "Review AI results before confirming. Confirmed new invoices are emailed by the server; PayPal requires your own merchant connection."
                   : "Invoices are stored locally. AI output requires review. PayPal Sandbox requires configuration."}
             </span>

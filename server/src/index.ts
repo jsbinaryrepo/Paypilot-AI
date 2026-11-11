@@ -12,11 +12,12 @@ import { refreshOverdue } from "./overdue.js";
 
 const config = readConfig(process.env);
 const accounts = config.ACCOUNTS_ENABLED === "true";
+const guests = config.PUBLIC_GUEST_ACCESS === "true";
 const db = accounts
   ? new PrismaClient({ adapter: new PrismaLibSQL({ url: config.TURSO_DATABASE_URL!, authToken: config.TURSO_AUTH_TOKEN! }) })
   : new PrismaClient({ datasourceUrl: config.DATABASE_URL });
 try {
-  const owner = accounts ? null : await db.user.upsert({
+  const owner = accounts || guests ? null : await db.user.upsert({
     where: { email: config.LOCAL_USER_EMAIL },
     update: {},
     create: { email: config.LOCAL_USER_EMAIL },
@@ -26,8 +27,7 @@ try {
     secret: config.PAYPAL_CLIENT_SECRET,
     merchantId: config.PAYPAL_MERCHANT_ID,
     webhookId: config.PAYPAL_WEBHOOK_ID,
-    origin: accounts ? `${config.CLIENT_ORIGIN}/app` : config.DEMO_PASSWORD && process.env.VITE_PUBLIC_DEMO === "true"
-      ? `${config.CLIENT_ORIGIN}/owner` : config.CLIENT_ORIGIN,
+    origin: accounts ? `${config.CLIENT_ORIGIN}/app` : config.CLIENT_ORIGIN,
   });
   const app = createApp(
     db,
@@ -39,7 +39,7 @@ try {
       timeZone: config.INVOICE_TIMEZONE,
     }),
     paypal,
-    accounts ? undefined : config.DEMO_PASSWORD,
+    guests,
     new InvoiceEmail(db, {
       apiKey: config.RESEND_API_KEY,
       from: config.EMAIL_FROM,
@@ -47,8 +47,6 @@ try {
     accounts ? { origin: config.CLIENT_ORIGIN, apiKey: config.RESEND_API_KEY!, from: config.EMAIL_FROM! } : undefined,
     new PayPalInvoiceService(db, paypal, config.PAYPAL_BUSINESS_NAME),
   );
-  if (config.DEMO_PASSWORD && !accounts)
-    app.use("/owner", express.static(resolve("dist/owner-client")));
   if (accounts) app.use("/app", express.static(resolve("dist/account-client")));
   app.use(express.static(resolve("dist/client")));
   const server = app.listen(config.PORT, config.HOST, () => {

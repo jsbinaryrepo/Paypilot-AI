@@ -2,7 +2,7 @@
 
 PayPilot AI helps freelancers turn a written request into a reviewed invoice and collect a PayPal Sandbox payment. It uses React, TypeScript, Vite, Tailwind CSS and Lucide for the interface; Express, Prisma and SQLite for the API and storage; the official Google Gen AI SDK for extraction; and PayPal REST Invoicing v2 and Orders v2.
 
-**Status:** The free Render homepage remains a no-sign-in browser preview with local drafts. Per-visitor accounts, hosted Turso persistence, Gemini review and automatic invoice email after confirmation are implemented in code but **not activated or tested with live providers**. They require a Turso database, a verified Resend sender, private credentials and a new deployment. The protected `/owner/` workspace retains its PayPal Invoicing flow. Each visitor needs their own merchant connection before PayPal can be enabled in their account. No live Gemini request, email delivery, PayPal Sandbox transaction or webhook delivery has been verified.
+**Status:** The public Render build uses an anonymous server session, with no HTTP Basic or account login prompt. Each browser's invoices are isolated by an HttpOnly cookie and stored in SQLite. Render Free deletes that local database on restarts, and clearing the cookie loses access to the browser's records. Gemini, PayPal Sandbox and email provider behavior still require private credentials and real provider testing; none are claimed as verified here. Optional signed-in account mode remains disabled on the public service.
 
 ## Implemented scope and architecture
 
@@ -40,7 +40,7 @@ render.yaml             Free Render web service with temporary SQLite data
 AGENTS.md               Project rules and stage boundaries
 ```
 
-The public browser preview cannot send invoices or take payments. The protected owner workspace sends a saved invoice through PayPal Sandbox Invoicing v2 when configured; PayPal handles the customer notification. In individual `/app/` accounts, confirming a new invoice saves it and immediately calls Resend from the backend. A failed send leaves the saved draft available for retry, and a stable request ID prevents a repeated confirmation from creating another invoice. Shared PayPal merchant credentials are blocked for those accounts so visitor payments cannot flow to the wrong merchant. Provider acceptance is not proof of inbox delivery. Account mode does not include password recovery yet. Live-money payments and refunds/reversal reconciliation are outside this Sandbox implementation.
+The public guest workspace uses the existing server invoice, Gemini and PayPal Sandbox routes. Each browser's guest cookie selects a different database user; PayPal invoice sending remains an explicit action after invoice creation. When configured, PayPal handles its customer notification. In optional signed-in `/app/` accounts, confirming a new invoice immediately calls Resend from the backend. Provider acceptance is not proof of inbox delivery. Live-money payments and refunds/reversal reconciliation are outside this Sandbox implementation.
 
 ## Run locally
 
@@ -83,14 +83,15 @@ Server secrets belong in the ignored root `.env` locally or Render's private env
 | Variable | Required / default | Local / Render configuration |
 | --- | --- | --- |
 | `DATABASE_URL` | Required | Local and free Render `file:./dev.db` (relative to `prisma/`); free Render storage is temporary. |
-| `ACCOUNTS_ENABLED` | Default `false` | Set `true` only with a migrated hosted Turso database and verified email sender. Switches `/api` from the single-owner Basic gate to per-user sessions. |
+| `ACCOUNTS_ENABLED` | Default `false` | Optional signed-in account mode; requires Turso and Resend. Do not combine with `PUBLIC_GUEST_ACCESS`. |
+| `PUBLIC_GUEST_ACCESS` | Default `false` | Set `true` for anonymous server-backed public invoices. A browser cookie isolates each guest. |
 | `VITE_ACCOUNTS_ENABLED` | Default `false` | Public build-time link to `/app/`; set `true` together with account mode and rebuild. Contains no secret. |
 | `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | Account mode only | Hosted libSQL URL and private token from Turso. Never add the token to `VITE_*`. |
 | `PORT` | Default `3001` | Render service pins `3001`. |
 | `HOST` | Default `127.0.0.1` | Local loopback; free Render uses `0.0.0.0` for port detection. |
 | `CLIENT_ORIGIN` | Default `http://127.0.0.1:5173` | Built local app: `http://127.0.0.1:3001`; free Render: `https://paypilot-ai-3sho.onrender.com`. |
-| `DEMO_PASSWORD` | Required on public Render when account mode is off | At least 32 random characters. Protects the legacy owner `/api` and `/owner/`; the legacy owner route is disabled in account mode. |
-| `VITE_PUBLIC_DEMO` | Default false | Build-time frontend switch. Set true only for the public browser-only demo; it contains no secret. |
+| `VITE_PUBLIC_DEMO` | Default false | Keep false for the server-backed public workspace. True selects the old browser-only preview. |
+| `VITE_GUEST_MODE` | Default false | Public build-time label for the guest workspace; contains no secret. |
 | `LOCAL_USER_EMAIL` | Default `owner@example.test` | Stable local owner identity, **not authentication**. Changing it selects/creates another owner; it does not transfer invoices. |
 | `GEMINI_API_KEY` | Required for AI only | Server secret from your Google AI project; blank disables AI. |
 | `GEMINI_MODEL` | Required for AI only | A model ID available to your project supporting structured JSON; the example value is illustrative, not verified account access. |
@@ -110,7 +111,7 @@ Missing AI credentials preserve manual invoice entry. Missing PayPal credentials
 
 ### Automatic invoice email
 
-The public browser preview does not send email. At `/owner/`, the existing Basic password gate protects the server-backed workspace; **Send invoice** uses PayPal's Invoicing API and PayPal sends the recipient notification. In configured individual account mode, **Confirm and send invoice** makes one backend request: the server saves the validated invoice and immediately calls Resend. The server uses saved recipient and totals, persists a provider idempotency key, and changes a draft to `ISSUED` only after provider acceptance. A rejected or uncertain send reports an error and leaves a draft for retry; repeating the same confirmation reuses the invoice and delivery key. Acceptance does **not** prove inbox delivery. An uncertain Resend send reuses the same key for up to 23 hours; after that, reconcile in Resend before another attempt. Do not use real client data on the Free service's temporary local SQLite.
+In the public guest workspace, **Send PayPal Sandbox invoice** uses PayPal's Invoicing API when Sandbox credentials are configured; PayPal sends the recipient notification. In configured signed-in account mode, **Confirm and send invoice** saves the validated invoice and immediately calls Resend from the backend. A rejected or uncertain Resend send reports an error and leaves a draft for retry. Acceptance does **not** prove inbox delivery. Never use real client data on the Free service's temporary local SQLite.
 
 To configure individual account email, create a [Resend account](https://resend.com/), [verify a sending domain](https://resend.com/docs/dashboard/domains/introduction), and create a sending API key. Set `RESEND_API_KEY` and `EMAIL_FROM` privately, then restart or redeploy. Test with a recipient you control and check provider activity and inbox separately. Do not paste keys into chat or GitHub.
 
@@ -150,7 +151,7 @@ In the [PayPal Developer Dashboard](https://developer.paypal.com/dashboard/), cr
 
 The database lease serializes payment operations, and unique order/capture/invoice-payment constraints prevent duplicate records in the tested scenarios. Invoice editing and manual status updates are blocked once a checkout exists. Pending, denied or mismatched captures do not settle an invoice.
 
-Optional webhook: subscribe to `INVOICING.INVOICE.PAID`, `INVOICING.INVOICE.CANCELLED`, `INVOICING.INVOICE.SENT`, and `PAYMENT.CAPTURE.COMPLETED` on the same Sandbox REST app. Set `PAYPAL_WEBHOOK_ID` and register `https://paypilot-ai-3sho.onrender.com/api/paypal/webhook` in the PayPal Developer Dashboard after deployment. This route bypasses the demo Basic gate but verifies PayPal's original webhook signature with PayPal before any processing, then fetches the associated invoice or order again. PayPal's Sandbox business account shows its own invoice and transaction activity; PayPilot only displays verified local state. Actual webhook delivery needs a live Sandbox test. The Free service's local SQLite is temporary, so use synthetic tests there until durable storage is configured.
+Optional webhook: subscribe to `INVOICING.INVOICE.PAID`, `INVOICING.INVOICE.CANCELLED`, `INVOICING.INVOICE.SENT`, and `PAYMENT.CAPTURE.COMPLETED` on the same Sandbox REST app. Set `PAYPAL_WEBHOOK_ID` and register `https://paypilot-ai-3sho.onrender.com/api/paypal/webhook` in the PayPal Developer Dashboard after deployment. This public route verifies PayPal's original webhook signature with PayPal before any processing, then fetches the associated invoice or order again. PayPal's Sandbox business account shows its own invoice and transaction activity; PayPilot only displays verified local state. Actual webhook delivery needs a live Sandbox test. The Free service's local SQLite is temporary, so use synthetic tests there until durable storage is configured.
 
 PayPal reports `INVOICING.INVOICE.PAID` for partial or pending payments too, so the event alone never marks the local invoice paid. PayPal controls its buyer emails and Sandbox account activity; PayPilot cannot guarantee inbox receipt or create a PayPal account notification. The separate Resend path reports provider acceptance only and has no delivery webhook yet.
 
@@ -177,7 +178,7 @@ Review the staged diff for credentials, personal data, unrelated work and genera
 
 ## Free Render deployment
 
-The existing Render **Free Web Service** is `Paypilot-AI` at [paypilot-ai-3sho.onrender.com](https://paypilot-ai-3sho.onrender.com). `render.yaml` records the free configuration. The public frontend stores only manual drafts in each visitor's browser storage. It has no sign-in prompt and makes no API, Gemini or PayPal calls. Clearing browser storage removes those drafts; they do not sync across devices. The server's shared SQLite is ephemeral and inaccessible to the public UI. `/owner/` is a separate protected build for the single owner; its database records are temporary on Render Free. Use synthetic demo data only.
+The existing Render **Free Web Service** is `Paypilot-AI` at [paypilot-ai-3sho.onrender.com](https://paypilot-ai-3sho.onrender.com). `render.yaml` records the free configuration. The public frontend calls the Express API directly. A random, HttpOnly, Secure guest cookie selects each visitor's database user without a sign-in page. Other guest cookies cannot read that visitor's invoices. Render Free's local SQLite is temporary, so records can disappear on restart; losing the cookie also loses access. Use synthetic demo data only.
 
 Configure the existing service in Render from the repository root and `main` branch:
 
@@ -189,25 +190,25 @@ Configure the existing service in Render from the repository root and `main` bra
 | `DATABASE_URL` | `file:./dev.db` |
 | `HOST` / `PORT` | `0.0.0.0` / `3001` |
 | `CLIENT_ORIGIN` | `https://paypilot-ai-3sho.onrender.com` |
-| `DEMO_PASSWORD` | A private random string of at least 32 characters |
-| `VITE_PUBLIC_DEMO` | `true` |
+| `PUBLIC_GUEST_ACCESS` | `true` |
+| `VITE_PUBLIC_DEMO` / `VITE_GUEST_MODE` | `false` / `true` |
 | `RESEND_API_KEY` / `EMAIL_FROM` | Optional; set only after verifying the owner's sender domain |
 | `LOCAL_USER_EMAIL` / `INVOICE_TIMEZONE` | `owner@example.test` / `Asia/Kolkata` |
 | `PAYPAL_ENV` | `sandbox` |
 
-Set `DEMO_PASSWORD` in Render's private environment, never in GitHub or the client. It protects `/api`, while the built frontend is public and uses browser storage. Render's health probe may receive 401 on `/api/health`; use startup logs and an authenticated health request for backend checks. The local full app still uses SQLite and can use Gemini/PayPal when configured. Do not add payment credentials to the free public demo merely to show its UI.
+The server no longer reads `DEMO_PASSWORD` or sends `WWW-Authenticate`. Remove that obsolete Render variable. Keep Gemini, PayPal and Resend credentials private on the server; missing credentials disable their provider actions with an explicit error. A public guest session is not verified identity, and anyone can consume configured API quota or send a Sandbox invoice from the configured merchant. Use Sandbox and test data only; configure provider quotas and abuse controls before treating this as a production service.
 
-After pushing a reviewed commit, set `VITE_PUBLIC_DEMO=true` in the existing service's environment and rebuild/deploy. Verify the public landing and browser-only create/list/edit flow without a sign-in prompt, and verify `/api/health` still challenges unauthenticated requests. A real PayPal Sandbox test belongs in the protected local full app and must be reported as real only after provider approval, verified capture and database state have been observed.
+After pushing a reviewed commit, set `PUBLIC_GUEST_ACCESS=true`, `VITE_PUBLIC_DEMO=false` and `VITE_GUEST_MODE=true` in Render, then rebuild/deploy. Verify `/api/health` and the invoice UI respond without a Basic challenge, then create a synthetic invoice in one browser and confirm it is absent in a fresh browser. Real Gemini, email and PayPal Sandbox tests require their respective credentials and provider accounts.
 
 ## Verification and manual demo
 
-No-sign-in demo verification: an earlier local browser check created a synthetic manual draft, reviewed and confirmed it, reloaded it, reopened it for editing, and found it in the invoice list. The browser-only payment page reported that no PayPal order or payment can be created. The current automated suite passed **46 tests with zero failures**, including local account isolation and local libSQL migration/adapter checks. Lint, TypeScript and all production builds passed. These are mocked or local tests; no hosted Turso or live Resend behavior was tested.
+The automated suite checks anonymous guest isolation and absence of a Basic challenge, plus the existing invoice, Gemini, email and PayPal behavior using local databases and mocked providers. Report the current test and deployment results after running them; no live provider result should be inferred from mocked tests.
 
-The earlier private Blueprint check and startup smoke result apply only to the prior paid configuration. The free service requires separate deployment verification. The automated suite now also checks public-origin password configuration and Basic access. No provider calls were made by tests.
+The earlier private Blueprint check and startup smoke result apply only to the prior paid configuration. The Free service requires separate deployment verification. Automated provider tests do not make real external calls.
 
 Render already has a masked `GEMINI_API_KEY` entry. Its value and live access were not inspected; `GEMINI_MODEL` and PayPal settings were not visible among the service variables. AI needs both key and model, and PayPal needs its own Sandbox settings. Do not copy or expose local secrets to complete the demo automatically.
 
-No real provider transaction, live Gemini interpretation, webhook delivery or screenshots are claimed as tested. Remaining limitations include shared demo identity, ephemeral SQLite, manual reconciliation of expired uncertain attempts, and no refund/reversal processing. Tests do not establish production security guarantees.
+No real provider transaction, live Gemini interpretation, or webhook delivery is claimed as tested. Remaining limitations include ephemeral SQLite, guest sessions with no account recovery, public API quota exposure, manual reconciliation of expired uncertain attempts, and no refund/reversal processing. Tests do not establish production security guarantees.
 
 Before recording, configure your own credentials, use synthetic customer data, and rehearse this sequence:
 

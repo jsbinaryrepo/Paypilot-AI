@@ -1,5 +1,4 @@
-# Free public preview. Enable account mode only after Turso and Resend are configured.
-# Set a random DEMO_PASSWORD (at least 32 characters) in Render before deployment.
+# Free public guest workspace. Provider credentials remain server-only.
 services:
   - type: web
     name: paypilot-ai
@@ -23,6 +22,8 @@ services:
         value: file:./dev.db
       - key: ACCOUNTS_ENABLED
         value: "false"
+      - key: PUBLIC_GUEST_ACCESS
+        value: "true"
       - key: VITE_ACCOUNTS_ENABLED
         value: "false"
       - key: TURSO_DATABASE_URL
@@ -32,9 +33,9 @@ services:
       - key: CLIENT_ORIGIN
         value: https://paypilot-ai-3sho.onrender.com
       - key: VITE_PUBLIC_DEMO
+        value: "false"
+      - key: VITE_GUEST_MODE
         value: "true"
-      - key: DEMO_PASSWORD
-        sync: false
       - key: LOCAL_USER_EMAIL
         value: owner@example.test
       - key: INVOICE_TIMEZONE

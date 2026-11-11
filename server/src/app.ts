@@ -1,11 +1,11 @@
 import express, { type ErrorRequestHandler } from "express";
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { extractionRequestSchema } from "../../shared/ai-invoice.js";
 import { PayPal, PaymentError } from "./services/paypal.js";
 import { InvoiceEmail, InvoiceEmailError } from "./services/invoice-email.js";
 import { accountRoutes, AccountError, sessionUser } from "./accounts.js";
+import { guestSession } from "./guest.js";
 import { PayPalInvoiceService, PayPalInvoiceError } from "./services/paypal-invoice.js";
 import { daysOverdue, refreshOverdue } from "./overdue.js";
 import {
@@ -37,53 +37,14 @@ export function createApp(
   clientOrigin = "http://127.0.0.1:5173",
   ai: InvoiceAi = createInvoiceAi(),
   paypal: PayPal = new PayPal(db, { origin: clientOrigin }),
-  demoPassword?: string,
+  guestAccess = false,
   email: InvoiceEmail = new InvoiceEmail(db, {}),
   accounts?: { origin: string; apiKey: string; from: string; sendVerification?: (apiKey: string, from: string, origin: string, recipient: string, token: string) => Promise<void> },
   invoicing: PayPalInvoiceService = new PayPalInvoiceService(db, paypal),
 ) {
   const app = express();
   app.disable("x-powered-by");
-  if (demoPassword) {
-    const cookieName = "paypilot_owner";
-    const sessionDurationMs = 12 * 60 * 60 * 1000;
-    const expected = createHash("sha256")
-      .update(`Basic ${Buffer.from(`paypilot:${demoPassword}`).toString("base64")}`)
-      .digest();
-    const signature = (expires: string) =>
-      createHmac("sha256", demoPassword).update(expires).digest("base64url");
-    app.use(accounts ? ["/owner"] : ["/api", "/owner"], (req, res, next) => {
-      if (req.path === "/paypal/webhook") return next(); // Mounted at /api; PayPal authenticates with its verified signature.
-      const supplied = createHash("sha256").update(req.headers.authorization ?? "").digest();
-      const basic = timingSafeEqual(supplied, expected);
-      const token = req.headers.cookie
-        ?.split(";")
-        .map((part) => part.trim())
-        .find((part) => part.startsWith(`${cookieName}=`))
-        ?.slice(cookieName.length + 1);
-      const [expires = "", mac = ""] = token?.split(".") ?? [];
-      const validTime = /^\d{13}$/.test(expires) && Number(expires) > Date.now() &&
-        Number(expires) <= Date.now() + sessionDurationMs;
-      const session = req.baseUrl === "/api" && validTime &&
-        mac.length === signature(expires).length &&
-        timingSafeEqual(Buffer.from(mac), Buffer.from(signature(expires)));
-      if (!basic && !session) {
-        res.setHeader("WWW-Authenticate", 'Basic realm="PayPilot Demo"');
-        return res.status(401).end();
-      }
-      if (basic && req.baseUrl === "/owner") {
-        const expiry = String(Date.now() + sessionDurationMs);
-        res.cookie(cookieName, `${expiry}.${signature(expiry)}`, {
-          httpOnly: true,
-          secure: clientOrigin.startsWith("https://"),
-          sameSite: "strict",
-          path: "/api",
-          maxAge: sessionDurationMs,
-        });
-      }
-      next();
-    });
-  }
+  if (guestAccess && accounts) throw new Error("Guest and account modes cannot run together.");
   // Restrict host, origin and content type before account routes or data access.
   app.use((req, res, next) => {
     const host = req.hostname;
@@ -105,13 +66,14 @@ export function createApp(
     ) {
       return next(new HttpError(415, "Use application/json."));
     }
-    if (accounts && ["POST", "PATCH", "PUT", "DELETE"].includes(req.method) &&
+    if ((accounts || guestAccess) && ["POST", "PATCH", "PUT", "DELETE"].includes(req.method) &&
         req.path !== "/api/paypal/webhook" && req.headers.origin !== clientOrigin)
       return next(new HttpError(403, "Origin required."));
     res.setHeader("Cache-Control", "no-store");
     next();
   });
   app.use(express.json({ limit: "16kb" }));
+  if (guestAccess) app.use("/api", guestSession(db, clientOrigin.startsWith("https://")));
   if (accounts) {
     app.use("/api/auth", accountRoutes(db, accounts));
     app.use("/api", async (req, res, next) => {
@@ -122,7 +84,8 @@ export function createApp(
       next();
     });
   }
-  const identity = (res: express.Response) => accounts ? res.locals.accountUserId as string : userId;
+  const identity = (res: express.Response) => accounts ? res.locals.accountUserId as string
+    : guestAccess ? res.locals.visitorUserId as string : userId;
   const idSchema = z.string().cuid();
   app.get("/api/paypal/status", (_req, res) =>
     res.json({ configured: paypal.configured, environment: "sandbox" }),

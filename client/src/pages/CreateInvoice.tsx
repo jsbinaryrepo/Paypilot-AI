@@ -19,7 +19,7 @@ import { type ExtractionResult } from "../../../shared/ai-invoice";
 import { api } from "../api";
 import { ButtonLink, PageHeader } from "../components";
 import { formatMoney, type DemoInvoice } from "../demo";
-import { publicDemo } from "../public-demo";
+import { guestMode, publicDemo } from "../public-demo";
 
 const draftSchema = z
   .object({
@@ -250,7 +250,7 @@ export function CreateInvoicePage({
         description="Bring the details together. Review everything before taking the next step."
       >
         <span className="subtle-tag">
-          <LockKeyhole size={13} /> {publicDemo ? "Browser demo" : "Local database"}
+          <LockKeyhole size={13} /> {publicDemo ? "Browser demo" : guestMode ? "Guest workspace" : "Local database"}
         </span>
       </PageHeader>
       {!invoice && !publicDemo && (

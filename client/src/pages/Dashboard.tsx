@@ -160,7 +160,7 @@ export function DashboardPage({ invoices }: { invoices: DemoInvoice[] }) {
             <span>
               <i className="legend-dot outstanding" /> Outstanding
             </span>
-            <span className="legend-note">{publicDemo ? "Browser-only drafts" : "Local database records"}</span>
+            <span className="legend-note">{publicDemo ? "Browser-only drafts" : "Saved database records"}</span>
           </div>
         </section>
         <section className="quick-create">
@@ -208,7 +208,7 @@ export function DashboardPage({ invoices }: { invoices: DemoInvoice[] }) {
         <InvoiceTable invoices={scoped.slice(0, 5)} />
         <div className="table-bottom">
           <span>
-            <span className="tiny-dot" /> {publicDemo ? "Browser storage" : "Local database"}
+            <span className="tiny-dot" /> {publicDemo ? "Browser storage" : "Database records"}
           </span>
           <a href="#/create">
             <Plus size={14} /> New draft
