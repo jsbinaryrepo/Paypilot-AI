@@ -41,7 +41,7 @@ export function googleJsonGenerator(
   const client = new GoogleGenAI({
     apiKey,
     httpOptions: {
-      timeout: 20000,
+      timeout: 45000,
       retryOptions: { attempts: 1 },
       ...(fetch ? { fetch } : {}),
     },
@@ -57,7 +57,7 @@ export function googleJsonGenerator(
           target: "draft-7",
         }),
         maxOutputTokens: 4096,
-        abortSignal: AbortSignal.timeout(25000),
+        abortSignal: AbortSignal.timeout(50000),
       },
     });
     if (response.candidates?.[0]?.finishReason !== "STOP" || !response.text) {
@@ -170,6 +170,11 @@ For a due date given as a number of days from today, put that integer in dueInDa
             throw new AiError(
               429,
               "Gemini quota is exhausted or rate limited. Wait and check your API quota.",
+            );
+          if (error.status === 504)
+            throw new AiError(
+              504,
+              "Gemini timed out. No invoice was created. Retry explicitly or use manual entry.",
             );
         }
         if (

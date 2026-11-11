@@ -136,6 +136,7 @@ test("provider errors and timeouts are safe and do not echo secrets", async () =
     [403, 503],
     [404, 503],
     [429, 429],
+    [504, 504],
     [500, 502],
   ]) {
     const ai = createInvoiceAi({
