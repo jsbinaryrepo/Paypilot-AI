@@ -2,7 +2,7 @@
 
 PayPilot AI helps freelancers turn a written request into a reviewed invoice and collect a PayPal Sandbox payment. It uses React, TypeScript, Vite, Tailwind CSS and Lucide for the interface; Express, Prisma and SQLite for the API and storage; the official Google Gen AI SDK for extraction; and PayPal REST Invoicing v2 and Orders v2.
 
-**Status:** The public Render build uses an anonymous server session, with no HTTP Basic or account login prompt. Each browser's invoices are isolated by an HttpOnly cookie and stored in SQLite. Render Free deletes that local database on restarts, and clearing the cookie loses access to the browser's records. Gemini, PayPal Sandbox and email provider behavior still require private credentials and real provider testing; none are claimed as verified here. Optional signed-in account mode remains disabled on the public service.
+**Status:** The public Render build offers a guest workspace through an anonymous server session. Each browser's invoices are isolated by an HttpOnly cookie and stored in SQLite. Render Free deletes that local database on restarts, and clearing the cookie loses access to the browser's records. The entry screen shows freelancer sign-in and registration, which remain disabled until persistent Turso storage and a verified Resend sender are configured. Gemini and PayPal Sandbox still require valid server credentials and real provider testing.
 
 ## Implemented scope and architecture
 

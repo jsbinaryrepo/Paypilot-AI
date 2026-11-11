@@ -2,7 +2,7 @@
 
 ## Current requested extension
 
-The user now requests optional freelancer sign-in alongside public guest access. Reuse the existing email-verified account flow and private invoice ownership. Keep the live guest service unchanged until a persistent Turso database and verified Resend sender are configured; enabling account mode without them prevents registration or startup. Gemini and PayPal keys stay on the server. Real provider behavior requires manual Sandbox and email testing.
+The user now requests a visible entry screen for freelancer sign-in, account creation, and guest access, plus a fix for missing Gemini configuration. Reuse the existing email-verified account flow and private invoice ownership. Keep sign-in disabled until a persistent Turso database and verified Resend sender are configured; enabling account mode without them prevents registration or startup. Gemini and PayPal keys stay on the server. Real provider behavior requires manual Sandbox and email testing.
 
 ## Current free demo deployment
 

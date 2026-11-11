@@ -367,7 +367,7 @@ export function AppLayout({
           <div className="sidebar-user">
             <span className="avatar purple">AM</span>
             <div>
-              <strong>{guestMode ? "Guest workspace" : "Workspace owner"}</strong>
+              <strong>{accountMode ? "Freelancer account" : guestMode ? "Guest workspace" : "Workspace owner"}</strong>
               <small>{publicDemo ? "Browser demo" : guestMode ? "This browser" : accountMode ? "Your account" : "Local account"}</small>
             </div>
             <span className="online-dot" />

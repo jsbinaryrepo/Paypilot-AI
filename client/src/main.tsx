@@ -16,6 +16,26 @@ import "./styles.css";
 function getRoute() {
   return window.location.hash.slice(1) || "/";
 }
+function EntryPage() {
+  const accountsReady = import.meta.env.VITE_ACCOUNTS_ENABLED === "true";
+  return <main className="account-shell">
+    <section className="account-card" aria-labelledby="entry-title">
+      <a className="brand" href="#/home">paypilot<span className="brand-ai">AI</span></a>
+      <h1 id="entry-title">Choose your workspace</h1>
+      <p className="text-muted">Manage invoices as a freelancer, or explore PayPilot as a guest.</p>
+      {accountsReady ? <>
+        <a className="btn btn-primary" href="/app/#/login">Sign In</a>
+        <a className="btn btn-secondary" href="/app/#/register">Create Account</a>
+      </> : <>
+        <button className="btn btn-primary" disabled>Sign In</button>
+        <button className="btn btn-secondary" disabled>Create Account</button>
+        <p className="text-muted">Freelancer accounts need the hosted database and email sender to be configured.</p>
+      </>}
+      <a className="btn btn-secondary" href="#/dashboard">Continue as Guest</a>
+      <a href="#/home">Explore PayPilot</a>
+    </section>
+  </main>;
+}
 function App() {
   const accountMode = import.meta.env.VITE_ACCOUNT_MODE === "true";
   const [signedIn, setSignedIn] = useState<boolean | null>(accountMode ? null : true);
@@ -25,7 +45,7 @@ function App() {
   const [loadError, setLoadError] = useState("");
   const [reload, setReload] = useState(0);
   const route = location.split("?")[0];
-  const workspace = route !== "/";
+  const workspace = accountMode || (route !== "/" && route !== "/home");
   useEffect(() => {
     if (!accountMode) return;
     let active = true;
@@ -66,7 +86,9 @@ function App() {
   useEffect(() => {
     const page =
       route === "/"
-        ? "Less admin. More momentum."
+        ? accountMode ? "Overview" : "Choose your workspace"
+        : route === "/home"
+          ? "Less admin. More momentum."
         : route === "/dashboard"
           ? "Overview"
           : route === "/create"
@@ -89,7 +111,8 @@ function App() {
   if (accountMode && signedIn === null) return <p role="status" className="account-shell">Checking account…</p>;
   if (accountMode && (!signedIn || ["/login", "/register", "/verify"].includes(route)))
     return <AccountPage route={["/register", "/verify"].includes(route) ? route : "/login"} onSignedIn={() => { setSignedIn(true); window.location.hash = "/dashboard"; }} />;
-  if (route === "/") return <LandingPage />;
+  if (route === "/" && !accountMode) return <EntryPage />;
+  if (route === "/home") return <LandingPage />;
   const id = route.startsWith("/invoices/") ? route.split("/")[2] : undefined;
   const selected = invoices.find((invoice) => invoice.id === id);
   const editId =
@@ -115,7 +138,7 @@ function App() {
             Retry
           </button>
         </div>
-      ) : route === "/dashboard" ? (
+      ) : route === "/dashboard" || (accountMode && route === "/") ? (
         <DashboardPage invoices={invoices} />
       ) : route === "/invoices" ? (
         <InvoicesPage invoices={invoices} />
