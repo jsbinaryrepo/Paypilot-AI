@@ -25,6 +25,8 @@ import {
   type Status,
 } from "./demo";
 import { publicDemo } from "./public-demo";
+import { api } from "./api";
+const accountMode = import.meta.env.VITE_ACCOUNT_MODE === "true";
 
 export function Brand({ dark = false }: { dark?: boolean }) {
   return (
@@ -262,10 +264,17 @@ export function AppLayout({
         <div className="workspace-picker">
           <span className="workspace-logo">S</span>
           <span>
-            Studio workspace<small>{publicDemo ? "Browser demo" : "Local workspace"}</small>
+            Studio workspace<small>{publicDemo ? "Browser demo" : accountMode ? "Your account" : "Local workspace"}</small>
           </span>
         </div>
         <p className="nav-label">WORKSPACE</p>
+        {accountMode && <button className="nav-link" onClick={async () => {
+          try {
+            await api("/auth/logout", { method: "POST", body: "{}" });
+            window.location.hash = "/login";
+            window.location.reload();
+          } catch { window.alert("Sign out failed. Please try again."); }
+        }}>Sign out</button>}
         <nav>
           {mainLinks.map(({ href, label, icon: Icon }) => {
             const active =
@@ -348,14 +357,16 @@ export function AppLayout({
             <p className="sidebar-help">
               {publicDemo
                 ? "Drafts stay in this browser only. Gemini and PayPal are unavailable. Clear browser storage to remove demo invoices."
-                : "Invoices are stored locally in SQLite. Gemini drafts require your review and confirmation. PayPal Sandbox checkout is available when configured."}
+                : accountMode
+                  ? "Your invoices are stored in your account. Gemini drafts require review. New invoices are emailed after confirmation; PayPal needs your own merchant connection."
+                  : "Invoices are stored locally in SQLite. Gemini drafts require your review and confirmation. PayPal Sandbox checkout is available when configured."}
             </p>
           )}
           <div className="sidebar-user">
             <span className="avatar purple">AM</span>
             <div>
               <strong>Workspace owner</strong>
-              <small>{publicDemo ? "Browser demo" : "Local account"}</small>
+              <small>{publicDemo ? "Browser demo" : accountMode ? "Your account" : "Local account"}</small>
             </div>
             <span className="online-dot" />
           </div>
@@ -387,7 +398,7 @@ export function AppLayout({
             <span className="topbar-divider" />
             <span className="preview-chip">
               <span />
-              {publicDemo ? "Browser demo" : "Local mode"}
+              {publicDemo ? "Browser demo" : accountMode ? "Your account" : "Local mode"}
             </span>
             <span
               className="avatar purple small-avatar"
@@ -399,12 +410,16 @@ export function AppLayout({
         </header>
         <main className="workspace-content">
           <div className="demo-notice">
-            <span className="demo-tag">{publicDemo ? "BROWSER DEMO" : "LOCAL WORKSPACE"}</span>
+            <span className="demo-tag">{publicDemo ? "BROWSER DEMO" : accountMode ? "YOUR ACCOUNT" : "LOCAL WORKSPACE"}</span>
             <span>
               {publicDemo
                 ? "Drafts stay in this browser. Gemini and PayPal are unavailable; no payment can be made."
-                : "Invoices are stored locally. AI output requires review. No payment provider is connected."}
+                : accountMode
+                  ? "Review AI results before confirming. Confirmed new invoices are emailed by the server; PayPal requires your own merchant connection."
+                  : "Invoices are stored locally. AI output requires review. PayPal Sandbox requires configuration."}
             </span>
+            {publicDemo && import.meta.env.VITE_ACCOUNTS_ENABLED === "true" &&
+              <a href="/app/#/login" className="inline-link">Use account workspace</a>}
           </div>
           {children}
           <footer className="app-footer">

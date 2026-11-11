@@ -60,6 +60,7 @@ export function CreateInvoicePage({
   invoice?: DemoInvoice;
   onSave: (invoice: DemoInvoice) => Promise<void>;
 }) {
+  const accountMode = import.meta.env.VITE_ACCOUNT_MODE === "true";
   const [prompt, setPrompt] = useState("");
   const [aiNotice, setAiNotice] = useState("");
   const [aiConfigured, setAiConfigured] = useState<boolean | null>(null);
@@ -559,8 +560,9 @@ export function CreateInvoicePage({
                     {pending.items.map((item) => item.description).join("; ")}
                   </p>
                   <p className="text-muted">
-                    This creates a local draft only. No invoice is sent and no
-                    payment is processed.
+                    {accountMode && !invoice
+                      ? "Confirming saves the invoice and asks the server to email it now. You will see an error if the provider does not accept it; no payment is processed."
+                      : "This creates a draft only. No invoice is sent and no payment is processed."}
                   </p>
                   <div className="builder-actions">
                     <button
@@ -580,7 +582,7 @@ export function CreateInvoicePage({
                         ? "Saving…"
                         : invoice
                           ? "Confirm and save changes"
-                          : "Confirm and create invoice"}
+                          : accountMode ? "Confirm and send invoice" : "Confirm and create invoice"}
                     </button>
                   </div>
                 </div>
@@ -599,8 +601,9 @@ export function CreateInvoicePage({
               </button>
             </div>
             <p className="save-note">
-              <ShieldCheck size={14} /> Nothing is sent to your client. A draft
-              is saved locally only after confirmation.
+              <ShieldCheck size={14} /> {accountMode && !invoice
+                ? "Review first. The server emails the invoice only after you confirm."
+                : "Nothing is sent to your client. A draft is saved only after confirmation."}
             </p>
           </div>
           <aside className="draft-preview">

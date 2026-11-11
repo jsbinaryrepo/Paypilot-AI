@@ -10,6 +10,7 @@ datasource db {
 enum InvoiceStatus {
   DRAFT
   ISSUED
+  OVERDUE
   PAID
   CANCELLED
 }
@@ -29,9 +30,25 @@ model User {
   id        String    @id @default(cuid())
   email     String    @unique
   name      String?
+  passwordHash String?
+  verifiedAt DateTime?
+  verificationTokenHash String? @unique
+  verificationExpiresAt DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   invoices  Invoice[]
+  sessions  Session[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model Invoice {
@@ -47,14 +64,24 @@ model Invoice {
   dueDate        DateTime
   status         InvoiceStatus @default(DRAFT)
   version        Int           @default(1)
+  clientRequestId String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   payments       Payment[]
   checkout       Checkout?
   delivery       InvoiceDelivery?
+  paypalInvoiceId String? @unique
+  paypalInvoiceNumber String? @unique
+  paypalInvoiceState String?
+  paypalInvoiceStartedAt DateTime?
+  paypalInvoiceBusyUntil DateTime?
+  paypalInvoiceSentAt DateTime?
+  paypalInvoiceLastError String?
+  paypalInvoicePaymentUrl String?
 
   @@index([userId, createdAt])
   @@index([userId, status, dueDate])
+  @@unique([userId, clientRequestId])
 }
 
 model InvoiceDelivery {

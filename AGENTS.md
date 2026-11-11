@@ -2,7 +2,7 @@
 
 ## Current requested extension
 
-The user chose automatic invoice email delivery with account setup. This extends the narrower free-demo scope below. Keep the no-sign-in public browser demo, and expose the database-backed owner workspace only at `/owner/` behind the existing `DEMO_PASSWORD` Basic gate. Send invoice emails only from the server after explicit confirmation, using the saved invoice recipient and totals. Keep provider credentials server-only, persist a stable idempotency key before sending, and never report inbox delivery from a provider acceptance response. Render Free SQLite remains ephemeral; do not present it as a durable production invoice system. Real email delivery needs the user's verified sender domain, provider API key and manual end-to-end test.
+The user chose per-visitor sign-in for real invoices, Gemini extraction, and automatic invoice email immediately after the existing review-and-confirm action. Keep the no-sign-in public browser preview separate. Account mode uses hosted Turso, verified email registration, signed sessions and per-request ownership at `/app/`; it stays disabled until Turso and Resend are configured. Shared PayPal merchant credentials must not collect visitor payments. Each visitor needs their own merchant connection before account PayPal checkout can be enabled. The protected `/owner/` workspace retains its server-side PayPal Invoicing flow. Require explicit confirmation, use saved invoice details, keep credentials server-only, verify payment before `PAID`, and never equate provider acceptance with inbox delivery. Real provider behavior requires manual Sandbox and email testing.
 
 ## Current free demo deployment
 

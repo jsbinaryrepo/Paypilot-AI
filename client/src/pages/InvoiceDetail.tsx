@@ -7,17 +7,17 @@ import {
   Download,
   FileText,
   Info,
-  Mail,
   Pencil,
   ShieldCheck,
 } from "lucide-react";
 import { Badge, Brand, ButtonLink, PageHeader } from "../components";
 import { formatDate, formatMoney, totalMinor, type DemoInvoice } from "../demo";
 import { publicDemo } from "../public-demo";
-import { invoiceEmailHref } from "../invoice-email";
 import { OwnerEmailSend } from "../owner-email";
+import { PayPalInvoiceSend } from "../paypal-invoice-send";
 
 export function InvoiceDetailPage({ invoice }: { invoice: DemoInvoice }) {
+  const accountMode = import.meta.env.VITE_ACCOUNT_MODE === "true";
   return (
     <>
       <a href="#/invoices" className="back-link">
@@ -27,15 +27,10 @@ export function InvoiceDetailPage({ invoice }: { invoice: DemoInvoice }) {
         title={invoice.number}
         description={`${invoice.company || invoice.client} · Saved invoice`}
       >
-        {publicDemo ? (
-          <a className="btn btn-secondary" href={invoiceEmailHref(invoice)}>
-            <Mail size={16} /> Compose email
-          </a>
-        ) : null}
         <button className="btn btn-secondary" onClick={() => window.print()}>
           <Download size={16} /> Print / Save PDF
         </button>
-        {invoice.status === "draft" && (
+        {invoice.status === "draft" && !invoice.paypalInvoiceState && (
           <ButtonLink href={`#/create?edit=${invoice.id}`}>
             <Pencil size={15} /> Edit draft
           </ButtonLink>
@@ -133,8 +128,7 @@ export function InvoiceDetailPage({ invoice }: { invoice: DemoInvoice }) {
             </p>
           </div>
           <div className="paper-stamp">
-            <ShieldCheck size={15} /> UI preview · Not a payment request · No
-            funds processed
+            <ShieldCheck size={15} /> {publicDemo ? "Browser preview · No funds processed" : "Sandbox invoice · Check PayPal to verify payment"}
           </div>
         </article>
         <aside className="invoice-aside">
@@ -166,10 +160,13 @@ export function InvoiceDetailPage({ invoice }: { invoice: DemoInvoice }) {
               </dl>
             </div>
           </section>
-          {!publicDemo && <OwnerEmailSend invoice={invoice} />}
+          {publicDemo ? <section className="surface payment-unavailable"><p>Automatic sending requires a configured account or owner workspace. This browser preview cannot email customers.</p></section>
+            : accountMode ? <OwnerEmailSend invoice={invoice} /> : <PayPalInvoiceSend invoice={invoice} />}
           <section className="surface payment-unavailable">
             {publicDemo ? (
               <p>Payment checkout is unavailable in this browser demo. No PayPal transaction can be made.</p>
+            ) : accountMode ? <p>Sandbox checkout for individual accounts requires each merchant to connect their own PayPal account.</p> : invoice.paypalInvoiceState ? (
+              <p>Pay this invoice through its PayPal Sandbox invoice link above. Check PayPal status here after payment.</p>
             ) : (
               <PayPalCheckout
                 invoiceId={invoice.id}
@@ -224,8 +221,9 @@ export function InvoiceDetailPage({ invoice }: { invoice: DemoInvoice }) {
           </a>
           <p className="detail-info">
             <Info size={14} /> {publicDemo
-              ? "Compose email opens your email app. You must review and send it yourself; no payment is processed."
-              : "Email delivery requires a configured provider. Acceptance by the provider does not prove inbox delivery."}
+              ? "Automatic sending and payments are unavailable in this browser preview."
+              : accountMode ? "Email delivery requires a configured provider. Acceptance does not prove inbox delivery."
+              : "PayPal sends the Sandbox invoice notification. A sent status does not prove inbox delivery or payment."}
           </p>
         </aside>
       </div>

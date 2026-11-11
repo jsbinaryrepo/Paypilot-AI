@@ -5,6 +5,9 @@ import { z } from "zod";
 import { extractionRequestSchema } from "../../shared/ai-invoice.js";
 import { PayPal, PaymentError } from "./services/paypal.js";
 import { InvoiceEmail, InvoiceEmailError } from "./services/invoice-email.js";
+import { accountRoutes, AccountError, sessionUser } from "./accounts.js";
+import { PayPalInvoiceService, PayPalInvoiceError } from "./services/paypal-invoice.js";
+import { daysOverdue, refreshOverdue } from "./overdue.js";
 import {
   AiError,
   createInvoiceAi,
@@ -36,6 +39,8 @@ export function createApp(
   paypal: PayPal = new PayPal(db, { origin: clientOrigin }),
   demoPassword?: string,
   email: InvoiceEmail = new InvoiceEmail(db, {}),
+  accounts?: { origin: string; apiKey: string; from: string; sendVerification?: (apiKey: string, from: string, origin: string, recipient: string, token: string) => Promise<void> },
+  invoicing: PayPalInvoiceService = new PayPalInvoiceService(db, paypal),
 ) {
   const app = express();
   app.disable("x-powered-by");
@@ -47,7 +52,8 @@ export function createApp(
       .digest();
     const signature = (expires: string) =>
       createHmac("sha256", demoPassword).update(expires).digest("base64url");
-    app.use(["/api", "/owner"], (req, res, next) => {
+    app.use(accounts ? ["/owner"] : ["/api", "/owner"], (req, res, next) => {
+      if (req.path === "/paypal/webhook") return next(); // Mounted at /api; PayPal authenticates with its verified signature.
       const supplied = createHash("sha256").update(req.headers.authorization ?? "").digest();
       const basic = timingSafeEqual(supplied, expected);
       const token = req.headers.cookie
@@ -78,7 +84,7 @@ export function createApp(
       next();
     });
   }
-  // Single-user demo; the Basic gate protects a public Render instance.
+  // Restrict host, origin and content type before account routes or data access.
   app.use((req, res, next) => {
     const host = req.hostname;
     if (!["localhost", "127.0.0.1", new URL(clientOrigin).hostname].includes(host))
@@ -99,19 +105,48 @@ export function createApp(
     ) {
       return next(new HttpError(415, "Use application/json."));
     }
+    if (accounts && ["POST", "PATCH", "PUT", "DELETE"].includes(req.method) &&
+        req.path !== "/api/paypal/webhook" && req.headers.origin !== clientOrigin)
+      return next(new HttpError(403, "Origin required."));
     res.setHeader("Cache-Control", "no-store");
     next();
   });
   app.use(express.json({ limit: "16kb" }));
+  if (accounts) {
+    app.use("/api/auth", accountRoutes(db, accounts));
+    app.use("/api", async (req, res, next) => {
+      if (req.path === "/health" || req.path === "/paypal/webhook") return next();
+      const user = await sessionUser(db, req);
+      if (!user) return next(new HttpError(401, "Sign in to continue."));
+      res.locals.accountUserId = user.id;
+      next();
+    });
+  }
+  const identity = (res: express.Response) => accounts ? res.locals.accountUserId as string : userId;
   const idSchema = z.string().cuid();
   app.get("/api/paypal/status", (_req, res) =>
     res.json({ configured: paypal.configured, environment: "sandbox" }),
   );
+  app.get("/api/invoices/:id/paypal-invoice", async (req, res) => {
+    const result = await invoicing.status(idSchema.parse(req.params.id), identity(res));
+    res.json(accounts ? { ...result, configured: false } : result);
+  });
+  app.post("/api/invoices/:id/paypal-invoice/send", async (req, res) => {
+    if (accounts) throw new PayPalInvoiceError(503, "A shared PayPal merchant account cannot send invoices for individual visitor accounts.");
+    const { confirmed, version } = z.object({ confirmed: z.literal(true), version: z.number().int().positive() }).strict().parse(req.body);
+    void confirmed;
+    res.json(await invoicing.send(idSchema.parse(req.params.id), identity(res), version));
+  });
+  app.post("/api/invoices/:id/paypal-invoice/check", async (req, res) => {
+    z.object({}).strict().parse(req.body);
+    res.json(await invoicing.check(idSchema.parse(req.params.id), identity(res)));
+  });
   app.post("/api/invoices/:id/paypal/order", async (req, res) => {
+    if (accounts) throw new PaymentError(503, "Individual accounts need their own PayPal merchant connection before checkout is available.");
     z.object({ confirmed: z.literal(true) })
       .strict()
       .parse(req.body);
-    res.json(await paypal.start(idSchema.parse(req.params.id), userId));
+    res.json(await paypal.start(idSchema.parse(req.params.id), identity(res)));
   });
   app.post("/api/invoices/:id/paypal/check", async (req, res) => {
     const body = z
@@ -127,14 +162,15 @@ export function createApp(
     res.json(
       await paypal.check(
         idSchema.parse(req.params.id),
-        userId,
+        identity(res),
         body.orderId,
         body.capture,
       ),
     );
   });
   app.post("/api/paypal/webhook", async (req, res) => {
-    await paypal.webhook(req.headers, req.body);
+    const event = await paypal.webhook(req.headers, req.body);
+    if (event?.invoicingId) await invoicing.reconcileProvider(event.invoicingId);
     res.json({ received: true });
   });
 
@@ -152,7 +188,7 @@ export function createApp(
     res.json({ status: "ok", database: "connected", mode: "local" });
   });
   app.get("/api/invoices/:id/email", async (req, res) => {
-    res.json(await email.status(idSchema.parse(req.params.id), userId));
+    res.json(await email.status(idSchema.parse(req.params.id), identity(res)));
   });
   app.post("/api/invoices/:id/email/send", async (req, res) => {
     const { confirmed, version } = z.object({
@@ -160,25 +196,41 @@ export function createApp(
       version: z.number().int().positive(),
     }).strict().parse(req.body);
     void confirmed;
-    res.json(await email.send(idSchema.parse(req.params.id), userId, version));
+    res.json(await email.send(idSchema.parse(req.params.id), identity(res), version));
   });
   app.post("/api/invoices", async (req, res) => {
-    const { confirmed: _confirmed, ...input } = createInvoiceSchema.parse(
+    const { confirmed: _confirmed, requestId, ...input } = createInvoiceSchema.parse(
       req.body,
     );
     void _confirmed; // Validated confirmation is not a database column.
-    const invoice = await db.invoice.create({
-      data: {
-        ...input,
-        dueDate: new Date(`${input.dueDate}T00:00:00.000Z`),
-        userId,
-      },
-    });
+    if (accounts && !requestId)
+      throw new HttpError(400, "A stable invoice request ID is required for automatic sending.");
+    const userId = identity(res);
+    const data = { ...input, dueDate: new Date(`${input.dueDate}T00:00:00.000Z`), userId,
+      clientRequestId: accounts ? requestId : undefined };
+    const invoice = accounts && requestId
+      ? await db.invoice.upsert({ where: { userId_clientRequestId: { userId, clientRequestId: requestId } }, create: data, update: {} })
+      : await db.invoice.create({ data });
+    if (invoice.clientName !== input.clientName || invoice.clientEmail !== input.clientEmail ||
+        invoice.description !== input.description || invoice.amountMinor !== input.amountMinor ||
+        invoice.currency !== input.currency || invoice.dueDate.getTime() !== data.dueDate.getTime() ||
+        JSON.stringify(invoice.details) !== JSON.stringify(input.details ?? null))
+      throw new HttpError(409, "This invoice request ID belongs to different details. Review and create a new invoice.");
+    if (accounts) {
+      try {
+        await email.send(invoice.id, userId, invoice.version);
+      } catch (error) {
+        const message = error instanceof InvoiceEmailError ? error.message : "Email outcome is uncertain. Check the provider before retrying.";
+        throw new HttpError(502, `Invoice saved, but the email was not accepted: ${message} Retry this confirmation or open the saved invoice.`);
+      }
+      return res.status(201).json(await db.invoice.findUniqueOrThrow({ where: { id: invoice.id } }));
+    }
     res.status(201).json(invoice);
   });
   app.get("/api/invoices", async (req, res) => {
+    await refreshOverdue(db, identity(res));
     const { status, page, pageSize } = listSchema.parse(req.query);
-    const where = { userId, ...(status ? { status } : {}) };
+    const where = { userId: identity(res), ...(status ? { status } : {}) };
     const [items, total] = await db.$transaction([
       db.invoice.findMany({
         where,
@@ -191,26 +243,29 @@ export function createApp(
     res.json({ items, total, page, pageSize });
   });
   app.get("/api/invoices/:id", async (req, res) => {
+    await refreshOverdue(db, identity(res));
     const id = idSchema.parse(req.params.id);
     const invoice = await db.invoice.findFirst({
-      where: { id, userId },
+      where: { id, userId: identity(res) },
       include: { payments: { orderBy: { createdAt: "desc" } } },
     });
     if (!invoice) throw new HttpError(404, "Invoice not found.");
-    res.json(invoice);
+    res.json({ ...invoice, overdueDays: invoice.status === "OVERDUE" ? daysOverdue(invoice.dueDate) : 0 });
   });
   app.patch("/api/invoices/:id", async (req, res) => {
     const id = idSchema.parse(req.params.id);
     const { version, ...input } = editInvoiceSchema.parse(req.body);
     const invoice = await db.$transaction(async (tx) => {
-      const existing = await tx.invoice.findFirst({ where: { id, userId } });
+      const existing = await tx.invoice.findFirst({ where: { id, userId: identity(res) } });
       if (!existing) throw new HttpError(404, "Invoice not found.");
       if (existing.status !== "DRAFT")
         throw new HttpError(409, "Only draft invoices can be edited.");
       if (await tx.invoiceDelivery.findUnique({ where: { invoiceId: id } }))
         throw new HttpError(409, "Invoice has an email send in progress. Check its status before editing.");
+      if (existing.paypalInvoiceState)
+        throw new HttpError(409, "Invoice is associated with a PayPal invoice and cannot be edited.");
       const updated = await tx.invoice.updateMany({
-        where: { id, userId, status: "DRAFT", version },
+        where: { id, userId: identity(res), status: "DRAFT", version },
         data: {
           ...input,
           dueDate: new Date(`${input.dueDate}T00:00:00.000Z`),
@@ -227,19 +282,21 @@ export function createApp(
     const id = idSchema.parse(req.params.id);
     const { status, version } = statusSchema.parse(req.body);
     const invoice = await db.$transaction(async (tx) => {
-      const existing = await tx.invoice.findFirst({ where: { id, userId } });
+      const existing = await tx.invoice.findFirst({ where: { id, userId: identity(res) } });
       if (!existing) throw new HttpError(404, "Invoice not found.");
       if (await tx.checkout.findUnique({ where: { invoiceId: id } }))
         throw new HttpError(
           409,
           "Invoice is locked by a PayPal checkout. Reconcile the payment before changing it.",
         );
+      if (existing.paypalInvoiceState)
+        throw new HttpError(409, "Check the PayPal invoice before changing its status.");
       if ((await tx.invoiceDelivery.findUnique({ where: { invoiceId: id } }))?.status === "PENDING")
         throw new HttpError(409, "Invoice email outcome is pending. Check it before changing the invoice.");
       if (!transitions[existing.status].includes(status))
         throw new HttpError(409, "This status transition is not allowed.");
       const result = await tx.invoice.updateMany({
-        where: { id, userId, status: existing.status, version },
+        where: { id, userId: identity(res), status: existing.status, version },
         data: { status, version: { increment: 1 } },
       });
       if (!result.count)
@@ -267,24 +324,25 @@ export function createApp(
     res.json(invoice);
   });
   app.get("/api/dashboard", async (_req, res) => {
+    await refreshOverdue(db, identity(res));
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
     const grouped = db.invoice.groupBy({
       by: ["status", "currency"],
       orderBy: { currency: "asc" },
-      where: { userId },
+      where: { userId: identity(res) },
       _count: { _all: true },
       _sum: { amountMinor: true },
     });
     const [groups, overdue] = await db.$transaction([
       grouped,
       db.invoice.count({
-        where: { userId, status: "ISSUED", dueDate: { lt: today } },
+      where: { userId: identity(res), status: "OVERDUE" },
       }),
     ]);
     const dashboard: Dashboard = {
       total: 0,
-      byStatus: { DRAFT: 0, ISSUED: 0, PAID: 0, CANCELLED: 0 },
+      byStatus: { DRAFT: 0, ISSUED: 0, OVERDUE: 0, PAID: 0, CANCELLED: 0 },
       overdue,
       totals: [],
     };
@@ -299,9 +357,9 @@ export function createApp(
         paidMinor: 0,
       };
       const amount = group._sum.amountMinor ?? 0;
-      if (group.status === "ISSUED" || group.status === "PAID")
+      if (group.status === "ISSUED" || group.status === "OVERDUE" || group.status === "PAID")
         row.invoicedMinor += amount;
-      if (group.status === "ISSUED") row.outstandingMinor += amount;
+      if (group.status === "ISSUED" || group.status === "OVERDUE") row.outstandingMinor += amount;
       if (group.status === "PAID") row.paidMinor += amount;
       totals.set(group.currency, row);
     }
@@ -326,6 +384,8 @@ export function createApp(
       error instanceof AiError ||
       error instanceof HttpError ||
       error instanceof InvoiceEmailError ||
+      error instanceof PayPalInvoiceError ||
+      error instanceof AccountError ||
       error instanceof PaymentError
     ) {
       res.status(error.status).json({ error: error.message });

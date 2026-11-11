@@ -9,12 +9,16 @@ import { InvoicesPage } from "./pages/Invoices";
 import { CreateInvoicePage } from "./pages/CreateInvoice";
 import { InvoiceDetailPage } from "./pages/InvoiceDetail";
 import { PaymentPage } from "./pages/Payment";
+import { AccountPage } from "./pages/Account";
+import { api } from "./api";
 import "./styles.css";
 
 function getRoute() {
   return window.location.hash.slice(1) || "/";
 }
 function App() {
+  const accountMode = import.meta.env.VITE_ACCOUNT_MODE === "true";
+  const [signedIn, setSignedIn] = useState<boolean | null>(accountMode ? null : true);
   const [location, setLocation] = useState(getRoute);
   const [invoices, setInvoices] = useState<DemoInvoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -23,7 +27,14 @@ function App() {
   const route = location.split("?")[0];
   const workspace = route !== "/";
   useEffect(() => {
-    if (!workspace) return;
+    if (!accountMode) return;
+    let active = true;
+    api("/auth/me").then(() => { if (active) setSignedIn(true); })
+      .catch(() => { if (active) setSignedIn(false); });
+    return () => { active = false; };
+  }, [accountMode]);
+  useEffect(() => {
+    if (!workspace || !signedIn || ["/login", "/register", "/verify"].includes(route)) return;
     let cancelled = false;
     setLoading(true);
     setLoadError("");
@@ -43,7 +54,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [workspace, reload, route]);
+  }, [workspace, reload, route, signedIn]);
   useEffect(() => {
     const onChange = () => {
       setLocation(getRoute());
@@ -75,6 +86,9 @@ function App() {
     ]);
     window.location.hash = `/invoices/${saved.id}`;
   }
+  if (accountMode && signedIn === null) return <p role="status" className="account-shell">Checking account…</p>;
+  if (accountMode && (!signedIn || ["/login", "/register", "/verify"].includes(route)))
+    return <AccountPage route={["/register", "/verify"].includes(route) ? route : "/login"} onSignedIn={() => { setSignedIn(true); window.location.hash = "/dashboard"; }} />;
   if (route === "/") return <LandingPage />;
   const id = route.startsWith("/invoices/") ? route.split("/")[2] : undefined;
   const selected = invoices.find((invoice) => invoice.id === id);

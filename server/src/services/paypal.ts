@@ -60,6 +60,7 @@ interface Options {
 }
 export class PayPal {
   readonly configured: boolean;
+  readonly invoicingConfigured: boolean;
   private token = "";
   private expires = 0;
   private fetcher: typeof fetch;
@@ -70,15 +71,16 @@ export class PayPal {
     this.configured = Boolean(
       options.clientId && options.secret && options.merchantId,
     );
+    this.invoicingConfigured = Boolean(options.clientId && options.secret);
     this.fetcher = options.fetch ?? fetch;
   }
-  private async request(
+  async request(
     path: string,
     method = "GET",
     body?: unknown,
     key?: string,
   ): Promise<unknown> {
-    if (!this.configured)
+    if (!this.invoicingConfigured)
       throw new PaymentError(
         503,
         "PayPal Sandbox is not configured. Set PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET and PAYPAL_MERCHANT_ID on the server.",
@@ -129,7 +131,8 @@ export class PayPal {
           "PayPal could not complete this request. Use Check payment / Retry to reconcile the existing order; do not start a separate payment.",
         );
       }
-      return await response.json();
+      const raw = await response.text();
+      return raw ? JSON.parse(raw) as unknown : null;
     } catch (error) {
       if (error instanceof PaymentError) throw error;
       throw new PaymentError(
@@ -179,7 +182,7 @@ export class PayPal {
       if (
         current.amountMinor !== invoice.amountMinor ||
         current.currency !== invoice.currency ||
-        !["ISSUED", "PAID"].includes(current.status)
+        !["ISSUED", "OVERDUE", "PAID"].includes(current.status)
       )
         throw new PaymentError(
           409,
@@ -223,7 +226,10 @@ export class PayPal {
       where: { id: invoiceId, userId },
     });
     if (!invoice) throw new PaymentError(404, "Invoice not found.");
-    if (!this.configured) await this.request("/");
+    if (!this.configured)
+      throw new PaymentError(503, "PayPal Sandbox checkout requires PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET and PAYPAL_MERCHANT_ID.");
+    if (invoice.paypalInvoiceState)
+      throw new PaymentError(409, "This invoice uses PayPal Invoicing. Pay it through its PayPal invoice link.");
     const checkout = await this.db.$transaction(async (tx) => {
       const current = await tx.invoice.findFirstOrThrow({
         where: { id: invoiceId, userId },
@@ -441,6 +447,8 @@ export class PayPal {
     );
     if (result.verification_status !== "SUCCESS")
       throw new PaymentError(403, "Webhook signature verification failed.");
+    if (["INVOICING.INVOICE.PAID", "INVOICING.INVOICE.CANCELLED", "INVOICING.INVOICE.SENT"].includes(payload.event_type))
+      return { invoicingId: z.string().regex(/^INV2-[A-Z0-9-]{8,40}$/).parse(payload.resource.id) };
     if (payload.event_type !== "PAYMENT.CAPTURE.COMPLETED") return;
     const orderId = payload.resource.supplementary_data?.related_ids.order_id;
     if (!orderId)

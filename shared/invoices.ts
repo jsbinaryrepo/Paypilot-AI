@@ -2,10 +2,11 @@ import { z } from "zod";
 
 // Explicit initial support: each currency uses two decimal places.
 export const currencies = ["USD", "EUR", "GBP", "INR"] as const;
-export const statuses = ["DRAFT", "ISSUED", "PAID", "CANCELLED"] as const;
+export const statuses = ["DRAFT", "ISSUED", "OVERDUE", "PAID", "CANCELLED"] as const;
 export const transitions: Record<InvoiceStatus, readonly InvoiceStatus[]> = {
   DRAFT: ["ISSUED", "CANCELLED"],
   ISSUED: ["PAID", "CANCELLED"],
+  OVERDUE: ["PAID", "CANCELLED"],
   PAID: [],
   CANCELLED: [],
 };
@@ -55,10 +56,11 @@ export const editInvoiceSchema = invoiceSchema.safeExtend({
 });
 export const createInvoiceSchema = invoiceSchema.safeExtend({
   confirmed: z.literal(true),
+  requestId: z.uuid().optional(),
 });
 export const statusSchema = z
   .object({
-    status: z.enum(statuses),
+    status: z.enum(["DRAFT", "ISSUED", "PAID", "CANCELLED"]),
     version: z.number().int().positive(),
   })
   .strict();
@@ -87,6 +89,9 @@ export interface Invoice extends Omit<InvoiceInput, "currency" | "details"> {
   createdAt: string;
   updatedAt: string;
   payments?: Payment[];
+  overdueDays?: number;
+  paypalInvoiceId?: string | null;
+  paypalInvoiceState?: string | null;
   details?: z.infer<typeof invoiceDetailsSchema> | null;
 }
 export interface InvoicePage {

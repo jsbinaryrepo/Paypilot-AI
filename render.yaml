@@ -1,4 +1,4 @@
-# Free public demo. SQLite data is ephemeral and can be lost on restarts or redeploys.
+# Free public preview. Enable account mode only after Turso and Resend are configured.
 # Set a random DEMO_PASSWORD (at least 32 characters) in Render before deployment.
 services:
   - type: web
@@ -8,7 +8,7 @@ services:
     numInstances: 1
     autoDeployTrigger: off
     buildCommand: npm ci --include=dev && npm run db:generate && npm run build
-    # Free services lack a persistent disk; migrate the temporary SQLite file at startup.
+    # Migration script selects local SQLite or hosted Turso based on ACCOUNTS_ENABLED.
     startCommand: node dist/server/src/migrate.js && npm start
     envVars:
       - key: NODE_VERSION
@@ -21,6 +21,14 @@ services:
         value: "3001"
       - key: DATABASE_URL
         value: file:./dev.db
+      - key: ACCOUNTS_ENABLED
+        value: "false"
+      - key: VITE_ACCOUNTS_ENABLED
+        value: "false"
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false
       - key: CLIENT_ORIGIN
         value: https://paypilot-ai-3sho.onrender.com
       - key: VITE_PUBLIC_DEMO
@@ -46,4 +54,8 @@ services:
       - key: PAYPAL_CLIENT_SECRET
         sync: false
       - key: PAYPAL_MERCHANT_ID
+        sync: false
+      - key: PAYPAL_BUSINESS_NAME
+        sync: false
+      - key: PAYPAL_WEBHOOK_ID
         sync: false

@@ -16,6 +16,8 @@ export interface DemoInvoice {
   due: string;
   currency: "USD" | "EUR" | "GBP" | "INR";
   version?: number;
+  paypalInvoiceId?: string | null;
+  paypalInvoiceState?: string | null;
   items: LineItem[];
   notes: string;
 }

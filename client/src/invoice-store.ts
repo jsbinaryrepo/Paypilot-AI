@@ -39,24 +39,23 @@ export function toView(invoice: Invoice): DemoInvoice {
   const statuses: Record<Invoice["status"], Status> = {
     DRAFT: "draft",
     ISSUED: "sent",
+    OVERDUE: "overdue",
     PAID: "paid",
     CANCELLED: "cancelled",
   };
   const due = invoice.dueDate.slice(0, 10);
-  const today = new Date().toISOString().slice(0, 10);
   return {
     id: invoice.id,
     version: invoice.version,
+    paypalInvoiceId: invoice.paypalInvoiceId,
+    paypalInvoiceState: invoice.paypalInvoiceState,
     number: `INV-${invoice.id.slice(-8).toUpperCase()}`,
     client: invoice.clientName,
     email: invoice.clientEmail,
     company: details.success ? details.data.company : "",
     currency: invoice.currency as DemoInvoice["currency"],
     color: "purple",
-    status:
-      invoice.status === "ISSUED" && due < today
-        ? "overdue"
-        : statuses[invoice.status],
+    status: statuses[invoice.status],
     issued: invoice.createdAt.slice(0, 10),
     due,
     items: details.success
@@ -119,7 +118,8 @@ export async function saveInvoice(invoice: DemoInvoice): Promise<DemoInvoice> {
       method: existing ? "PATCH" : "POST",
       body: JSON.stringify({
         ...input,
-        ...(existing ? { version: invoice.version } : { confirmed: true }),
+        ...(existing ? { version: invoice.version } : { confirmed: true,
+          requestId: invoice.id.startsWith("session-") ? invoice.id.slice(8) : undefined }),
       }),
     }),
   );

@@ -336,7 +336,8 @@ test("statistics separate currencies and exclude drafts/cancellations from money
   assert.equal(stats.overdue, 1);
   assert.deepEqual(stats.byStatus, {
     DRAFT: 1,
-    ISSUED: 2,
+    ISSUED: 1,
+    OVERDUE: 1,
     PAID: 1,
     CANCELLED: 1,
   });
@@ -406,6 +407,8 @@ test("safe JSON errors, unknown API routes, origin checks and request limits", a
 
 test("configuration fails safely and decimal amounts convert exactly", () => {
   assert.equal(readConfig({ DATABASE_URL: "file:./test.db" }).PORT, 3001);
+  assert.equal(readConfig({ DATABASE_URL: "file:./test.db", TURSO_DATABASE_URL: "", TURSO_AUTH_TOKEN: "" }).ACCOUNTS_ENABLED, "false");
+  assert.throws(() => readConfig({ DATABASE_URL: "file:./test.db", ACCOUNTS_ENABLED: "true" }), /TURSO_DATABASE_URL/);
   assert.equal(readConfig({ DATABASE_URL: "file:./test.db" }).HOST, "127.0.0.1");
   assert.equal(readConfig({ DATABASE_URL: "file:/var/data/paypilot.db", HOST: "0.0.0.0" }).HOST, "0.0.0.0");
   assert.throws(
@@ -455,6 +458,10 @@ test("public demo requires Basic access before serving API data", async () => {
     assert.match(ownerPage.headers.get("set-cookie") ?? "", /HttpOnly/);
     assert.match(ownerPage.headers.get("set-cookie") ?? "", /Secure/);
     assert.equal((await fetch(url, { headers: { Cookie: cookie } })).status, 200);
+    const webhook = await fetch(url.replace("/api/health", "/api/paypal/webhook"), {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+    });
+    assert.equal(webhook.status, 503); // No Basic challenge; signature verification still requires configuration.
   } finally {
     demo.close();
     demo.closeAllConnections();

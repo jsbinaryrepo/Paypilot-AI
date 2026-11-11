@@ -1,0 +1,10 @@
+ALTER TABLE "Invoice" ADD COLUMN "paypalInvoiceId" TEXT;
+ALTER TABLE "Invoice" ADD COLUMN "paypalInvoiceNumber" TEXT;
+ALTER TABLE "Invoice" ADD COLUMN "paypalInvoiceState" TEXT;
+ALTER TABLE "Invoice" ADD COLUMN "paypalInvoiceStartedAt" DATETIME;
+ALTER TABLE "Invoice" ADD COLUMN "paypalInvoiceBusyUntil" DATETIME;
+ALTER TABLE "Invoice" ADD COLUMN "paypalInvoiceSentAt" DATETIME;
+ALTER TABLE "Invoice" ADD COLUMN "paypalInvoiceLastError" TEXT;
+ALTER TABLE "Invoice" ADD COLUMN "paypalInvoicePaymentUrl" TEXT;
+CREATE UNIQUE INDEX "Invoice_paypalInvoiceId_key" ON "Invoice"("paypalInvoiceId");
+CREATE UNIQUE INDEX "Invoice_paypalInvoiceNumber_key" ON "Invoice"("paypalInvoiceNumber");

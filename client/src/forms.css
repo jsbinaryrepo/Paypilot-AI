@@ -2,11 +2,11 @@
   width: 100%;
   margin-top: 7px;
   height: 39px;
-  border: 1px solid #e6e0ed;
+  border: 1px solid #d2d6e3;
   border-radius: 6px;
   padding: 8px 11px;
   font-size: 12px;
-  color: #4e5067;
+  color: #17172b;
   background: white;
 }
 .inline-notice ul {
@@ -47,7 +47,7 @@
   padding: 4px 0 10px;
 }
 .composer-body textarea::placeholder {
-  color: #a797b8;
+  color: #667089;
 }
 .prompt-bottom {
   display: flex;
@@ -140,7 +140,7 @@
 .form-grid label,
 .form-label {
   display: block;
-  color: #877091;
+  color: #4b5068;
   font-size: 11px;
   line-height: 1.5;
 }
@@ -149,7 +149,7 @@
 }
 .form-grid label > small,
 .form-label small {
-  color: #b29abf;
+  color: #555b73;
   font-size: 9px;
   margin-left: 6px;
 }
@@ -160,9 +160,9 @@
   width: 100%;
   padding: 10px 11px;
   font-size: 12px;
-  border: 1px solid #e6e0ed;
+  border: 1px solid #d2d6e3;
   border-radius: 6px;
-  color: #6f557d;
+  color: #17172b;
   background: white;
   min-width: 0;
 }
@@ -173,7 +173,7 @@
 .form-grid input::placeholder,
 .form-label textarea::placeholder,
 .line-item-fields input::placeholder {
-  color: #b29cbe;
+  color: #667089;
   font-size: 11px;
 }
 .form-label textarea {
