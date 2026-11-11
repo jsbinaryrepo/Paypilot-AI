@@ -422,8 +422,8 @@ export function AppLayout({
                   ? "Review AI results before confirming. Confirmed new invoices are emailed by the server; PayPal requires your own merchant connection."
                   : "Invoices are stored locally. AI output requires review. PayPal Sandbox requires configuration."}
             </span>
-            {publicDemo && import.meta.env.VITE_ACCOUNTS_ENABLED === "true" &&
-              <a href="/app/#/login" className="inline-link">Use account workspace</a>}
+            {!accountMode && import.meta.env.VITE_ACCOUNTS_ENABLED === "true" &&
+              <a href="/app/#/login" className="inline-link">Freelancer sign in</a>}
           </div>
           {children}
           <footer className="app-footer">

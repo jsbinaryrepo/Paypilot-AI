@@ -83,9 +83,9 @@ Server secrets belong in the ignored root `.env` locally or Render's private env
 | Variable | Required / default | Local / Render configuration |
 | --- | --- | --- |
 | `DATABASE_URL` | Required | Local and free Render `file:./dev.db` (relative to `prisma/`); free Render storage is temporary. |
-| `ACCOUNTS_ENABLED` | Default `false` | Optional signed-in account mode; requires Turso and Resend. Do not combine with `PUBLIC_GUEST_ACCESS`. |
+| `ACCOUNTS_ENABLED` | Default `false` | Optional signed-in account mode at `/app/`; requires Turso and Resend. Can run alongside public guest access. |
 | `PUBLIC_GUEST_ACCESS` | Default `false` | Set `true` for anonymous server-backed public invoices. A browser cookie isolates each guest. |
-| `VITE_ACCOUNTS_ENABLED` | Default `false` | Public build-time link to `/app/`; set `true` together with account mode and rebuild. Contains no secret. |
+| `VITE_ACCOUNTS_ENABLED` | Default `false` | Shows the optional freelancer sign-in link to `/app/` in the guest build when account mode is configured. |
 | `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | Account mode only | Hosted libSQL URL and private token from Turso. Never add the token to `VITE_*`. |
 | `PORT` | Default `3001` | Render service pins `3001`. |
 | `HOST` | Default `127.0.0.1` | Local loopback; free Render uses `0.0.0.0` for port detection. |
@@ -115,14 +115,14 @@ In the public guest workspace, **Send PayPal Sandbox invoice** uses PayPal's Inv
 
 To configure individual account email, create a [Resend account](https://resend.com/), [verify a sending domain](https://resend.com/docs/dashboard/domains/introduction), and create a sending API key. Set `RESEND_API_KEY` and `EMAIL_FROM` privately, then restart or redeploy. Test with a recipient you control and check provider activity and inbox separately. Do not paste keys into chat or GitHub.
 
-### Per-visitor accounts and persistent storage (prepared, not live)
+### Freelancer sign-in and persistent storage (prepared, not live)
 
 1. Create a [Turso](https://turso.tech/) account and a new hosted database. Generate a database auth token. The app uses the existing Prisma SQLite schema through the official libSQL adapter; `DATABASE_URL` remains a local SQLite URL for Prisma code generation, while `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` select the hosted database at runtime.
 2. Create a [Resend](https://resend.com/) account, verify a sender domain, and create an API key. Supply `RESEND_API_KEY` and `EMAIL_FROM` privately. The same sender address sends account verification and confirmed invoices; account holders do not send from their personal mailbox.
-3. In Render's private Environment page, set both Turso values and both Resend values. Set `ACCOUNTS_ENABLED=true` and `VITE_ACCOUNTS_ENABLED=true`; retain `VITE_PUBLIC_DEMO=true` so `/` remains the no-sign-in preview. Save and redeploy. The startup migration script applies the existing SQL migrations to the hosted database in order and records checksums. Use a **new empty database**; back up any existing database before changing schema. If migration fails, the server does not start.
-4. Visit `/app/#/register`, verify the email link, then sign in. Review an invoice addressed to an email you control and click **Confirm and send invoice**. Check both Resend activity and the inbox. Retry a failed send with the same confirmation; it must not create another invoice. Test that a second account cannot view the first account's invoice. A Resend acceptance means submitted to the provider, not delivered to the inbox.
+3. In Render's private Environment page, set both Turso values and both Resend values. Set `ACCOUNTS_ENABLED=true` and `VITE_ACCOUNTS_ENABLED=true`; keep `PUBLIC_GUEST_ACCESS=true` and `VITE_PUBLIC_DEMO=false` so visitors can still use the guest workspace at `/`. Save and redeploy. The account build at `/app/` requires email/password sign-in. The startup migration script applies the existing SQL migrations to the hosted database in order and records checksums. Use a **new empty database**; back up any existing database before changing schema. If migration fails, the server does not start.
+4. Visit `/app/#/register`, verify the email link, then sign in at `/app/`. Review an invoice addressed to an email you control and click **Confirm and send invoice**. Check both Resend activity and the inbox. Retry a failed send with the same confirmation; it must not create another invoice. Test that a second account cannot view the first account's invoice or a guest invoice. A Resend acceptance means submitted to the provider, not delivered to the inbox.
 
-The account route is unavailable while account mode is off. Render Free's local SQLite remains temporary, but configured account invoices and sessions reside in Turso. Registration is rate limited per process; account password recovery, provider delivery webhooks and a live Turso/Resend test remain open work. Never put database or email tokens in GitHub or chat.
+The account route is unavailable while account mode is off. After activation both guest and account invoices and sessions reside in Turso; existing guest invoices on Render's temporary SQLite do not migrate. Registration is rate limited per process; account password recovery, provider delivery webhooks and a live Turso/Resend test remain open work. Individual accounts cannot use the shared PayPal merchant credentials; each freelancer needs a separate merchant connection before their PayPal checkout can be enabled. Never put database or email tokens in GitHub or chat.
 
 ### Gemini configuration and behavior
 

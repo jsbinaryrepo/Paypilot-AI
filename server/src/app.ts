@@ -44,7 +44,6 @@ export function createApp(
 ) {
   const app = express();
   app.disable("x-powered-by");
-  if (guestAccess && accounts) throw new Error("Guest and account modes cannot run together.");
   // Restrict host, origin and content type before account routes or data access.
   app.use((req, res, next) => {
     const host = req.hostname;
@@ -73,29 +72,30 @@ export function createApp(
     next();
   });
   app.use(express.json({ limit: "16kb" }));
-  if (guestAccess) app.use("/api", guestSession(db, clientOrigin.startsWith("https://")));
   if (accounts) {
     app.use("/api/auth", accountRoutes(db, accounts));
     app.use("/api", async (req, res, next) => {
       if (req.path === "/health" || req.path === "/paypal/webhook") return next();
       const user = await sessionUser(db, req);
-      if (!user) return next(new HttpError(401, "Sign in to continue."));
-      res.locals.accountUserId = user.id;
+      if (user) res.locals.accountUserId = user.id;
+      else if (!guestAccess) return next(new HttpError(401, "Sign in to continue."));
       next();
     });
   }
-  const identity = (res: express.Response) => accounts ? res.locals.accountUserId as string
-    : guestAccess ? res.locals.visitorUserId as string : userId;
+  if (guestAccess) app.use("/api", guestSession(db, clientOrigin.startsWith("https://")));
+  const isAccount = (res: express.Response) => Boolean(res.locals.accountUserId);
+  const identity = (res: express.Response) => res.locals.accountUserId as string | undefined
+    ?? res.locals.visitorUserId as string | undefined ?? userId;
   const idSchema = z.string().cuid();
   app.get("/api/paypal/status", (_req, res) =>
     res.json({ configured: paypal.configured, environment: "sandbox" }),
   );
   app.get("/api/invoices/:id/paypal-invoice", async (req, res) => {
     const result = await invoicing.status(idSchema.parse(req.params.id), identity(res));
-    res.json(accounts ? { ...result, configured: false } : result);
+    res.json(isAccount(res) ? { ...result, configured: false } : result);
   });
   app.post("/api/invoices/:id/paypal-invoice/send", async (req, res) => {
-    if (accounts) throw new PayPalInvoiceError(503, "A shared PayPal merchant account cannot send invoices for individual visitor accounts.");
+    if (isAccount(res)) throw new PayPalInvoiceError(503, "A shared PayPal merchant account cannot send invoices for individual visitor accounts.");
     const { confirmed, version } = z.object({ confirmed: z.literal(true), version: z.number().int().positive() }).strict().parse(req.body);
     void confirmed;
     res.json(await invoicing.send(idSchema.parse(req.params.id), identity(res), version));
@@ -105,7 +105,7 @@ export function createApp(
     res.json(await invoicing.check(idSchema.parse(req.params.id), identity(res)));
   });
   app.post("/api/invoices/:id/paypal/order", async (req, res) => {
-    if (accounts) throw new PaymentError(503, "Individual accounts need their own PayPal merchant connection before checkout is available.");
+    if (isAccount(res)) throw new PaymentError(503, "Individual accounts need their own PayPal merchant connection before checkout is available.");
     z.object({ confirmed: z.literal(true) })
       .strict()
       .parse(req.body);
@@ -154,6 +154,7 @@ export function createApp(
     res.json(await email.status(idSchema.parse(req.params.id), identity(res)));
   });
   app.post("/api/invoices/:id/email/send", async (req, res) => {
+    if (accounts && !isAccount(res)) throw new HttpError(403, "Sign in to send invoice email.");
     const { confirmed, version } = z.object({
       confirmed: z.literal(true),
       version: z.number().int().positive(),
@@ -166,12 +167,13 @@ export function createApp(
       req.body,
     );
     void _confirmed; // Validated confirmation is not a database column.
-    if (accounts && !requestId)
+    const accountInvoice = isAccount(res);
+    if (accountInvoice && !requestId)
       throw new HttpError(400, "A stable invoice request ID is required for automatic sending.");
     const userId = identity(res);
     const data = { ...input, dueDate: new Date(`${input.dueDate}T00:00:00.000Z`), userId,
-      clientRequestId: accounts ? requestId : undefined };
-    const invoice = accounts && requestId
+      clientRequestId: accountInvoice ? requestId : undefined };
+    const invoice = accountInvoice && requestId
       ? await db.invoice.upsert({ where: { userId_clientRequestId: { userId, clientRequestId: requestId } }, create: data, update: {} })
       : await db.invoice.create({ data });
     if (invoice.clientName !== input.clientName || invoice.clientEmail !== input.clientEmail ||
@@ -179,7 +181,7 @@ export function createApp(
         invoice.currency !== input.currency || invoice.dueDate.getTime() !== data.dueDate.getTime() ||
         JSON.stringify(invoice.details) !== JSON.stringify(input.details ?? null))
       throw new HttpError(409, "This invoice request ID belongs to different details. Review and create a new invoice.");
-    if (accounts) {
+    if (accountInvoice) {
       try {
         await email.send(invoice.id, userId, invoice.version);
       } catch (error) {

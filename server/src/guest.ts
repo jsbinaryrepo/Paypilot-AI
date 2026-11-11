@@ -9,7 +9,7 @@ const digest = (value: string) => createHash("sha256").update(value).digest("hex
 
 export function guestSession(db: PrismaClient, secure: boolean) {
   return async (req: Request, res: Response, next: NextFunction) => {
-    if (req.path === "/health" || req.path === "/paypal/webhook") return next();
+    if (req.path === "/health" || req.path === "/paypal/webhook" || res.locals.accountUserId) return next();
     try {
       const token = req.headers.cookie?.split(";").map((part) => part.trim())
         .find((part) => part.startsWith(`${cookieName}=`))?.slice(cookieName.length + 1);

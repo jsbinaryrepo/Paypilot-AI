@@ -412,7 +412,7 @@ test("configuration fails safely and decimal amounts convert exactly", () => {
   assert.equal(readConfig({ DATABASE_URL: "file:./test.db" }).HOST, "127.0.0.1");
   assert.equal(readConfig({ DATABASE_URL: "file:/var/data/paypilot.db", HOST: "0.0.0.0" }).HOST, "0.0.0.0");
   assert.equal(readConfig({ DATABASE_URL: "file:./dev.db", CLIENT_ORIGIN: "https://paypilot-ai-3sho.onrender.com", PUBLIC_GUEST_ACCESS: "true" }).PUBLIC_GUEST_ACCESS, "true");
-  assert.throws(() => readConfig({ DATABASE_URL: "file:./dev.db", PUBLIC_GUEST_ACCESS: "true", ACCOUNTS_ENABLED: "true" }), /PUBLIC_GUEST_ACCESS/);
+  assert.equal(readConfig({ DATABASE_URL: "file:./dev.db", PUBLIC_GUEST_ACCESS: "true", ACCOUNTS_ENABLED: "true", TURSO_DATABASE_URL: "libsql://example.test", TURSO_AUTH_TOKEN: "token", RESEND_API_KEY: "key", EMAIL_FROM: "sender@example.test" }).ACCOUNTS_ENABLED, "true");
   assert.throws(() => readConfig({ DATABASE_URL: "file:./test.db", HOST: "public.example" }));
   assert.throws(
     () => readConfig({ DATABASE_URL: "secret-invalid-url" }),

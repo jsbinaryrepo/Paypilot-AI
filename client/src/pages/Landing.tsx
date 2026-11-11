@@ -43,8 +43,8 @@ export function LandingPage() {
           <span className="landing-preview-label">
             {publicDemo ? "Browser demo" : guestMode ? "Guest workspace" : "Local workspace"}
           </span>
-          {publicDemo && import.meta.env.VITE_ACCOUNTS_ENABLED === "true" &&
-            <a href="/app/#/login" className="btn btn-primary">Sign in or create account</a>}
+          {import.meta.env.VITE_ACCOUNTS_ENABLED === "true" &&
+            <a href="/app/#/login" className="btn btn-primary">Freelancer sign in</a>}
           <ButtonLink href="#/dashboard" variant="secondary">
             Open workspace <ArrowUpRight size={15} />
           </ButtonLink>
@@ -290,7 +290,7 @@ export function LandingPage() {
       <footer className="landing-footer">
         <Brand />
         <span>Thoughtfully built for independent work.</span>
-        {publicDemo && import.meta.env.VITE_ACCOUNTS_ENABLED === "true" && <a href="/app/#/login">Create an account or sign in</a>}
+        {import.meta.env.VITE_ACCOUNTS_ENABLED === "true" && <a href="/app/#/login">Create an account or sign in</a>}
         {publicDemo && import.meta.env.VITE_ACCOUNTS_ENABLED !== "true" && <a href="/owner/">Owner workspace</a>}
         <a href="#/dashboard">
           Explore preview <ArrowUpRight size={14} />

@@ -27,7 +27,7 @@ try {
     secret: config.PAYPAL_CLIENT_SECRET,
     merchantId: config.PAYPAL_MERCHANT_ID,
     webhookId: config.PAYPAL_WEBHOOK_ID,
-    origin: accounts ? `${config.CLIENT_ORIGIN}/app` : config.CLIENT_ORIGIN,
+    origin: accounts && !guests ? `${config.CLIENT_ORIGIN}/app` : config.CLIENT_ORIGIN,
   });
   const app = createApp(
     db,

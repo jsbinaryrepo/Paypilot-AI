@@ -51,8 +51,6 @@ export function readConfig(env: NodeJS.ProcessEnv) {
       `Invalid configuration: ${result.error.issues.map((issue) => issue.path.join(".")).join(", ")}`,
     );
   }
-  if (result.data.PUBLIC_GUEST_ACCESS === "true" && result.data.ACCOUNTS_ENABLED === "true")
-    throw new Error("Invalid configuration: PUBLIC_GUEST_ACCESS, ACCOUNTS_ENABLED");
   if (result.data.ACCOUNTS_ENABLED === "true" &&
       (!result.data.TURSO_DATABASE_URL || !result.data.TURSO_AUTH_TOKEN ||
        !result.data.RESEND_API_KEY || !result.data.EMAIL_FROM))

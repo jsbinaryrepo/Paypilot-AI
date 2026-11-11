@@ -32,8 +32,8 @@ export function AccountPage({ route, onSignedIn }: { route: string; onSignedIn: 
   return <main className="account-shell">
     <form className="account-card" onSubmit={submit}>
       <a className="brand" href="/">paypilot<span className="brand-ai">AI</span></a>
-      <h1>{verify ? "Verify your email" : register ? "Create your account" : "Sign in"}</h1>
-      <p className="text-muted">{verify ? "Confirm your email to activate your workspace." : "Your invoices belong to your own account."}</p>
+      <h1>{verify ? "Verify your email" : register ? "Create your freelancer account" : "Freelancer sign in"}</h1>
+      <p className="text-muted">{verify ? "Confirm your email to activate your workspace." : "Sign in to manage invoices in your own workspace."}</p>
       {!verify && <>
         <label htmlFor="account-email">Email</label>
         <input id="account-email" type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} />
@@ -43,7 +43,7 @@ export function AccountPage({ route, onSignedIn }: { route: string; onSignedIn: 
       <button className="btn btn-primary" disabled={busy}>{busy ? "Please wait…" : verify ? "Verify email" : register ? "Create account" : "Sign in"}</button>
       {message && <p role="status" className="text-muted">{message}</p>}
       <p className="text-muted">{register || verify ? <a href="#/login">Already registered? Sign in</a> : <a href="#/register">Create an account</a>}</p>
-      <a href="/">Back to browser demo</a>
+      <a href="/">Continue as guest</a>
     </form>
   </main>;
 }

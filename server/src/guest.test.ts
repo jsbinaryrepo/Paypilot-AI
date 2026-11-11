@@ -14,6 +14,7 @@ test("public guest workspace has no Basic prompt and isolates saved invoices", a
   const file = join(folder, "db.sqlite");
   const databaseUrl = `file:${file.replaceAll("\\", "/")}`;
   const origin = "http://127.0.0.1:5173";
+  let verificationToken = "";
   let db: PrismaClient | undefined;
   let server: ReturnType<ReturnType<typeof createApp>["listen"]> | undefined;
   try {
@@ -22,7 +23,10 @@ test("public guest workspace has no Basic prompt and isolates saved invoices", a
       env: { ...process.env, DATABASE_URL: databaseUrl }, timeout: 60000,
     });
     db = new PrismaClient({ datasourceUrl: databaseUrl });
-    server = createApp(db, "", origin, undefined, undefined, true).listen(0, "127.0.0.1");
+    server = createApp(db, "", origin, undefined, undefined, true, undefined, {
+      origin, apiKey: "test", from: "sender@example.test",
+      sendVerification: async (_key, _from, _origin, _recipient, token) => { verificationToken = token; },
+    }).listen(0, "127.0.0.1");
     await once(server, "listening");
     const address = server.address();
     assert.ok(address && typeof address !== "string");
@@ -53,6 +57,29 @@ test("public guest workspace has no Basic prompt and isolates saved invoices", a
     assert.equal(webhook.status, 503);
     assert.equal(webhook.headers.get("www-authenticate"), null);
     assert.equal(await db.session.count(), 2);
+    const post = (path: string, body: unknown, cookie?: string) => fetch(`${base}${path}`, {
+      method: "POST", headers: { Origin: origin, "Content-Type": "application/json", ...(cookie ? { Cookie: cookie } : {}) },
+      body: JSON.stringify(body),
+    });
+    assert.equal((await post("/auth/register", { email: "freelancer@example.test", password: "a sufficiently long password" })).status, 202);
+    assert.ok(verificationToken);
+    assert.equal((await post("/auth/verify", { token: verificationToken })).status, 200);
+    const login = await post("/auth/login", { email: "freelancer@example.test", password: "a sufficiently long password" });
+    assert.equal(login.status, 200);
+    const accountCookie = login.headers.get("set-cookie")?.split(";")[0];
+    assert.ok(accountCookie?.startsWith("paypilot_session="));
+    const accountList = await (await fetch(`${base}/invoices`, { headers: { Cookie: `${firstCookie}; ${accountCookie}` } })).json() as { total: number };
+    assert.equal(accountList.total, 0);
+    assert.equal((await fetch(`${base}/invoices/${invoice.id}`, { headers: { Cookie: accountCookie } })).status, 404);
+    const accountCreate = await post("/invoices", { confirmed: true, clientName: "Account Client", clientEmail: "account-client@example.test",
+      description: "Consulting", amountMinor: 7500, currency: "USD", dueDate: "2026-12-01",
+      requestId: "e956a099-6f3f-4fef-bf0c-50b4ffb561d8" }, accountCookie);
+    assert.equal(accountCreate.status, 502); // No email provider in this fixture; the saved draft is retriable.
+    const accountUser = await db.user.findUniqueOrThrow({ where: { email: "freelancer@example.test" } });
+    const accountInvoice = await db.invoice.findFirstOrThrow({ where: { userId: accountUser.id } });
+    assert.equal((await fetch(`${base}/invoices/${accountInvoice.id}`, { headers: { Cookie: firstCookie } })).status, 404);
+    assert.equal((await post(`/invoices/${invoice.id}/email/send`, { confirmed: true, version: 1 }, firstCookie)).status, 403);
+    assert.equal((await (await fetch(`${base}/invoices`, { headers: { Cookie: firstCookie } })).json() as { total: number }).total, 1);
   } finally {
     if (server) { server.close(); server.closeAllConnections(); await once(server, "close"); }
     await db?.$disconnect();
