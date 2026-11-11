@@ -180,6 +180,12 @@ For a due date given as a number of days from today, put that integer in dueInDa
             504,
             "Gemini timed out. No invoice was created. Retry explicitly or use manual entry.",
           );
+        // Log only the error type and code; provider messages may contain prompt data.
+        console.error("Gemini request failed", {
+          type: error instanceof Error ? error.name : typeof error,
+          status: typeof error === "object" && error !== null && "status" in error && typeof error.status === "number" ? error.status : undefined,
+          code: typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code.slice(0, 40) : undefined,
+        });
         throw new AiError(
           502,
           "Gemini is temporarily unavailable. No invoice was created. Use manual entry or try again later.",
