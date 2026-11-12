@@ -106,6 +106,29 @@ test("server email uses saved invoice, provider idempotency and one accepted rec
     release();
     assert.equal((await firstSend).status, "ACCEPTED");
     assert.equal(await db.invoiceDelivery.count({ where: { invoiceId: second.id } }), 1);
+
+    const brevoInvoice = await db.invoice.create({
+      data: {
+        userId: owner.id, clientName: "Brevo client", clientEmail: "brevo@example.test",
+        description: "Design work", amountMinor: 5000, currency: "USD",
+        dueDate: new Date("2026-11-19T00:00:00.000Z"),
+      },
+    });
+    let brevoCalls = 0;
+    const brevo = new InvoiceEmail(db, {
+      provider: "brevo", apiKey: "private-key", from: "sender@example.test",
+      fetch: async (url, init) => {
+        brevoCalls++;
+        assert.equal(url, "https://api.brevo.com/v3/smtp/email");
+        assert.equal(new Headers(init?.headers).get("api-key"), "private-key");
+        assert.equal((JSON.parse(String(init?.body)) as { to: { email: string }[] }).to[0].email, "brevo@example.test");
+        return Response.json({ messageId: "brevo-message-123" });
+      },
+    });
+    assert.equal((await brevo.send(brevoInvoice.id, owner.id, 1)).status, "ACCEPTED");
+    assert.equal((await db.invoiceDelivery.findUniqueOrThrow({ where: { invoiceId: brevoInvoice.id } })).providerId, "brevo-message-123");
+    await brevo.send(brevoInvoice.id, owner.id, 1);
+    assert.equal(brevoCalls, 1);
   } finally {
     await db?.$disconnect();
     for (const suffix of ["", "-journal", "-wal", "-shm"])

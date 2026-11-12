@@ -83,7 +83,7 @@ Server secrets belong in the ignored root `.env` locally or Render's private env
 | Variable | Required / default | Local / Render configuration |
 | --- | --- | --- |
 | `DATABASE_URL` | Required | Local and free Render `file:./dev.db` (relative to `prisma/`); free Render storage is temporary. |
-| `ACCOUNTS_ENABLED` | Default `false` | Optional signed-in account mode at `/app/`; requires Turso and Resend. Can run alongside public guest access. |
+| `ACCOUNTS_ENABLED` | Default `false` | Optional signed-in account mode at `/app/`; requires Turso and a configured email provider. Can run alongside public guest access. |
 | `PUBLIC_GUEST_ACCESS` | Default `false` | Set `true` for anonymous server-backed public invoices. A browser cookie isolates each guest. |
 | `VITE_ACCOUNTS_ENABLED` | Default `false` | Shows the optional freelancer sign-in link to `/app/` in the guest build when account mode is configured. |
 | `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | Account mode only | Hosted libSQL URL and private token from Turso. Never add the token to `VITE_*`. |
@@ -95,8 +95,9 @@ Server secrets belong in the ignored root `.env` locally or Render's private env
 | `LOCAL_USER_EMAIL` | Default `owner@example.test` | Stable local owner identity, **not authentication**. Changing it selects/creates another owner; it does not transfer invoices. |
 | `GEMINI_API_KEY` | Required for AI only | Server secret from your Google AI project; blank disables AI. |
 | `GEMINI_MODEL` | Required for AI only | A model ID available to your project supporting structured JSON; the example value is illustrative, not verified account access. |
-| `RESEND_API_KEY` | Required for account mode and automatic email | Secret API key for Resend. Never place it in `VITE_*`. |
-| `EMAIL_FROM` | Required for account mode and automatic email | Address on a verified sender domain in the same Resend account. |
+| `EMAIL_PROVIDER` | Default `resend` | Set `brevo` to use Brevo Free for account verification and automatic account invoice email. |
+| `RESEND_API_KEY` / `BREVO_API_KEY` | Selected provider key required for account mode | Server secret. Set only the key matching `EMAIL_PROVIDER`; never use `VITE_*`. |
+| `EMAIL_FROM` | Required for account mode and automatic email | Sender address verified with the selected provider. Brevo can verify an individual address without a custom domain. |
 | `INVOICE_TIMEZONE` | Default `Asia/Kolkata` | Valid IANA timezone used to resolve relative due dates. |
 | `PAYPAL_ENV` | Only `sandbox`; default | Production mode is rejected. |
 | `PAYPAL_CLIENT_ID` | Required for PayPal only | Sandbox REST application's client ID. |
@@ -111,18 +112,18 @@ Missing AI credentials preserve manual invoice entry. Missing PayPal credentials
 
 ### Automatic invoice email
 
-In the public guest workspace, **Send PayPal Sandbox invoice** uses PayPal's Invoicing API when Sandbox credentials are configured; PayPal sends the recipient notification. In configured signed-in account mode, **Confirm and send invoice** saves the validated invoice and immediately calls Resend from the backend. A rejected or uncertain Resend send reports an error and leaves a draft for retry. Acceptance does **not** prove inbox delivery. Never use real client data on the Free service's temporary local SQLite.
+In the public guest workspace, **Send PayPal Sandbox invoice** uses PayPal's Invoicing API when Sandbox credentials are configured; PayPal sends the recipient notification. In configured signed-in account mode, **Confirm and send invoice** saves the validated invoice and immediately calls the selected email provider from the backend. A rejected or uncertain send reports an error and leaves a draft for retry. Acceptance does **not** prove inbox delivery. Never use real client data on the Free service's temporary local SQLite.
 
-To configure individual account email, create a [Resend account](https://resend.com/), [verify a sending domain](https://resend.com/docs/dashboard/domains/introduction), and create a sending API key. Set `RESEND_API_KEY` and `EMAIL_FROM` privately, then restart or redeploy. Test with a recipient you control and check provider activity and inbox separately. Do not paste keys into chat or GitHub.
+For Brevo Free, [create an account](https://www.brevo.com/), [verify an email sender](https://help.brevo.com/hc/en-us/articles/208836149-Create-a-new-sender-From-name-and-From-email) using the code sent to an address you own, and generate an API key. Set `EMAIL_PROVIDER=brevo`, `BREVO_API_KEY`, and `EMAIL_FROM` privately on Render. A free email address can have limited deliverability or be rewritten by Brevo. The existing Resend path remains available with `EMAIL_PROVIDER=resend`, a verified domain, and `RESEND_API_KEY`. Test with a recipient you control and check provider activity and inbox separately. Do not paste keys into chat or GitHub.
 
 ### Freelancer sign-in and persistent storage (prepared, not live)
 
 1. Create a [Turso](https://turso.tech/) account and a new hosted database. Generate a database auth token. The app uses the existing Prisma SQLite schema through the official libSQL adapter; `DATABASE_URL` remains a local SQLite URL for Prisma code generation, while `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` select the hosted database at runtime.
-2. Create a [Resend](https://resend.com/) account, verify a sender domain, and create an API key. Supply `RESEND_API_KEY` and `EMAIL_FROM` privately. The same sender address sends account verification and confirmed invoices; account holders do not send from their personal mailbox.
-3. In Render's private Environment page, set both Turso values and both Resend values. Set `ACCOUNTS_ENABLED=true` and `VITE_ACCOUNTS_ENABLED=true`; keep `PUBLIC_GUEST_ACCESS=true` and `VITE_PUBLIC_DEMO=false` so visitors can still use the guest workspace at `/`. Save and redeploy. The account build at `/app/` requires email/password sign-in. The startup migration script applies the existing SQL migrations to the hosted database in order and records checksums. Use a **new empty database**; back up any existing database before changing schema. If migration fails, the server does not start.
-4. Visit `/app/#/register`, verify the email link, then sign in at `/app/`. Review an invoice addressed to an email you control and click **Confirm and send invoice**. Check both Resend activity and the inbox. Retry a failed send with the same confirmation; it must not create another invoice. Test that a second account cannot view the first account's invoice or a guest invoice. A Resend acceptance means submitted to the provider, not delivered to the inbox.
+2. Create a Brevo account, verify a sender email you own, and generate an API key. Set `EMAIL_PROVIDER=brevo`, `BREVO_API_KEY`, and `EMAIL_FROM` privately. The same sender address sends account verification and confirmed invoices; account holders do not send from their personal mailbox.
+3. In Render's private Environment page, set both Turso values and the Brevo values. Set `ACCOUNTS_ENABLED=true` and `VITE_ACCOUNTS_ENABLED=true`; keep `PUBLIC_GUEST_ACCESS=true` and `VITE_PUBLIC_DEMO=false` so visitors can still use the guest workspace at `/`. Save and redeploy. The account build at `/app/` requires email/password sign-in. The startup migration script applies the existing SQL migrations to the hosted database in order and records checksums. Use a **new empty database**; back up any existing database before changing schema. If migration fails, the server does not start.
+4. Visit `/app/#/register`, verify the email link, then sign in at `/app/`. Review an invoice addressed to an email you control and click **Confirm and send invoice**. Check both Brevo activity and the inbox. Retry a failed send with the same confirmation; it must not create another invoice. Test that a second account cannot view the first account's invoice or a guest invoice. Provider acceptance means submitted, not delivered to the inbox.
 
-The account route is unavailable while account mode is off. After activation both guest and account invoices and sessions reside in Turso; existing guest invoices on Render's temporary SQLite do not migrate. Registration is rate limited per process; account password recovery, provider delivery webhooks and a live Turso/Resend test remain open work. Individual accounts cannot use the shared PayPal merchant credentials; each freelancer needs a separate merchant connection before their PayPal checkout can be enabled. Never put database or email tokens in GitHub or chat.
+The account route is unavailable while account mode is off. After activation both guest and account invoices and sessions reside in Turso; existing guest invoices on Render's temporary SQLite do not migrate. Registration is rate limited per process; account password recovery, provider delivery webhooks and a live Turso/Brevo test remain open work. Individual accounts cannot use the shared PayPal merchant credentials; each freelancer needs a separate merchant connection before their PayPal checkout can be enabled. Never put database or email tokens in GitHub or chat.
 
 ### Gemini configuration and behavior
 
@@ -192,11 +193,11 @@ Configure the existing service in Render from the repository root and `main` bra
 | `CLIENT_ORIGIN` | `https://paypilot-ai-3sho.onrender.com` |
 | `PUBLIC_GUEST_ACCESS` | `true` |
 | `VITE_PUBLIC_DEMO` / `VITE_GUEST_MODE` | `false` / `true` |
-| `RESEND_API_KEY` / `EMAIL_FROM` | Optional; set only after verifying the owner's sender domain |
+| `EMAIL_PROVIDER` / `BREVO_API_KEY` / `EMAIL_FROM` | Optional; set Brevo and the key only after verifying a sender email |
 | `LOCAL_USER_EMAIL` / `INVOICE_TIMEZONE` | `owner@example.test` / `Asia/Kolkata` |
 | `PAYPAL_ENV` | `sandbox` |
 
-The server no longer reads `DEMO_PASSWORD` or sends `WWW-Authenticate`. Remove that obsolete Render variable. Keep Gemini, PayPal and Resend credentials private on the server; missing credentials disable their provider actions with an explicit error. A public guest session is not verified identity, and anyone can consume configured API quota or send a Sandbox invoice from the configured merchant. Use Sandbox and test data only; configure provider quotas and abuse controls before treating this as a production service.
+The server no longer reads `DEMO_PASSWORD` or sends `WWW-Authenticate`. Remove that obsolete Render variable. Keep Gemini, PayPal and email provider credentials private on the server; missing credentials disable their provider actions with an explicit error. A public guest session is not verified identity, and anyone can consume configured API quota or send a Sandbox invoice from the configured merchant. Use Sandbox and test data only; configure provider quotas and abuse controls before treating this as a production service.
 
 After pushing a reviewed commit, set `PUBLIC_GUEST_ACCESS=true`, `VITE_PUBLIC_DEMO=false` and `VITE_GUEST_MODE=true` in Render, then rebuild/deploy. Verify `/api/health` and the invoice UI respond without a Basic challenge, then create a synthetic invoice in one browser and confirm it is absent in a fresh browser. Real Gemini, email and PayPal Sandbox tests require their respective credentials and provider accounts.
 

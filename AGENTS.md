@@ -2,7 +2,7 @@
 
 ## Current requested extension
 
-The user now requests a visible entry screen for freelancer sign-in, account creation, and guest access, plus a fix for missing Gemini configuration. Reuse the existing email-verified account flow and private invoice ownership. Keep sign-in disabled until a persistent Turso database and verified Resend sender are configured; enabling account mode without them prevents registration or startup. Gemini and PayPal keys stay on the server. Real provider behavior requires manual Sandbox and email testing.
+The user requests freelancer sign-in, account creation, and guest access. Reuse the existing email-verified account flow and private invoice ownership. Keep sign-in disabled until a persistent Turso database and verified email sender are configured; enabling account mode without them prevents registration or startup. Brevo Free is the intended email provider; Resend remains supported. Gemini, PayPal, and email keys stay on the server. Real provider behavior requires manual Sandbox and email testing.
 
 ## Current free demo deployment
 

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { extractionRequestSchema } from "../../shared/ai-invoice.js";
 import { PayPal, PaymentError } from "./services/paypal.js";
 import { InvoiceEmail, InvoiceEmailError } from "./services/invoice-email.js";
+import type { EmailProvider } from "./services/email-provider.js";
 import { accountRoutes, AccountError, sessionUser } from "./accounts.js";
 import { guestSession } from "./guest.js";
 import { PayPalInvoiceService, PayPalInvoiceError } from "./services/paypal-invoice.js";
@@ -39,7 +40,7 @@ export function createApp(
   paypal: PayPal = new PayPal(db, { origin: clientOrigin }),
   guestAccess = false,
   email: InvoiceEmail = new InvoiceEmail(db, {}),
-  accounts?: { origin: string; apiKey: string; from: string; sendVerification?: (apiKey: string, from: string, origin: string, recipient: string, token: string) => Promise<void> },
+  accounts?: { origin: string; apiKey: string; from: string; provider?: EmailProvider; sendVerification?: (apiKey: string, from: string, origin: string, recipient: string, token: string) => Promise<void> },
   invoicing: PayPalInvoiceService = new PayPalInvoiceService(db, paypal),
 ) {
   const app = express();

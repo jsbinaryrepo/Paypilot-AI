@@ -4,6 +4,7 @@ import type { Request, Response, Router } from "express";
 import express from "express";
 import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
+import { emailRequest, emailResponseId, type EmailProvider } from "./services/email-provider.js";
 
 const scrypt = promisify(scryptCallback);
 const emailSchema = z.email().max(254).transform((value) => value.toLowerCase());
@@ -49,20 +50,22 @@ function setCookie(res: Response, value: string, secure: boolean) {
     httpOnly: true, secure, sameSite: "lax", path: "/api", maxAge: sessionMs,
   });
 }
-async function sendVerification(apiKey: string, from: string, origin: string, recipient: string, value: string) {
-  const response = await fetch("https://api.resend.com/emails", {
+async function sendVerification(apiKey: string, from: string, origin: string, recipient: string, value: string, provider: EmailProvider = "resend") {
+  const request = emailRequest(provider, apiKey, {
+    from, to: recipient, subject: "Verify your PayPilot account",
+    text: `Open this link to verify your PayPilot account:\n${origin}/app/#/verify?token=${value}\n\nThis link expires in 24 hours.`,
+  });
+  const response = await fetch(request.url, {
     method: "POST", redirect: "error", signal: AbortSignal.timeout(15000),
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      from, to: [recipient], subject: "Verify your PayPilot account",
-      text: `Open this link to verify your PayPilot account:\n${origin}/app/#/verify?token=${value}\n\nThis link expires in 24 hours.`,
-    }),
+    headers: request.headers, body: request.body,
   });
   if (!response.ok) throw new AccountError(503, "Verification email could not be sent. Check the sender setup and try again.");
+  if (!emailResponseId(provider, await response.json()))
+    throw new AccountError(503, "Email provider returned an invalid response. Check its activity before retrying.");
 }
 
 export function accountRoutes(db: PrismaClient, options: {
-  origin: string; apiKey: string; from: string;
+  origin: string; apiKey: string; from: string; provider?: EmailProvider;
   sendVerification?: typeof sendVerification;
 }) {
   const router: Router = express.Router();
@@ -75,7 +78,7 @@ export function accountRoutes(db: PrismaClient, options: {
     const value = token();
     const data = { passwordHash: await passwordHash(password), verificationTokenHash: hash(value), verificationExpiresAt: new Date(Date.now() + verifyMs) };
     await db.user.upsert({ where: { email }, create: { email, ...data }, update: data });
-    await (options.sendVerification ?? sendVerification)(options.apiKey, options.from, options.origin, email, value);
+    await (options.sendVerification ?? sendVerification)(options.apiKey, options.from, options.origin, email, value, options.provider);
     res.status(202).json({ message: "Check your email for a verification link." });
   });
   router.post("/verify", async (req, res) => {

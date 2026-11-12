@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { Invoice, PrismaClient } from "@prisma/client";
-import { z } from "zod";
 import { invoiceDetailsSchema, money } from "../../../shared/invoices.js";
+import { emailRequest, emailResponseId, type EmailProvider } from "./email-provider.js";
 
-const emailResponse = z.object({ id: z.string().min(1).max(128) });
 const retryWindowMs = 23 * 60 * 60 * 1000; // Provider keys expire after 24 hours.
+const brevoRetryWindowMs = 10 * 60 * 1000; // Conservative window; Brevo docs have cited a 15-minute TTL.
 const leaseMs = 60 * 1000;
 
 export class InvoiceEmailError extends Error {
@@ -14,6 +14,7 @@ export class InvoiceEmailError extends Error {
 }
 
 interface Options {
+  provider?: EmailProvider;
   apiKey?: string;
   from?: string;
   fetch?: typeof fetch;
@@ -70,7 +71,7 @@ export class InvoiceEmail {
     if (!this.configured)
       throw new InvoiceEmailError(
         503,
-        "Invoice email is not configured. Set RESEND_API_KEY and EMAIL_FROM on the server.",
+        "Invoice email is not configured. Set EMAIL_FROM and the selected provider API key on the server.",
       );
     const now = new Date();
     const delivery = await this.db.$transaction(async (tx) => {
@@ -101,7 +102,7 @@ export class InvoiceEmail {
           },
         });
       }
-      if (now.getTime() - invoice.delivery.startedAt.getTime() > retryWindowMs)
+      if (now.getTime() - invoice.delivery.startedAt.getTime() > (this.options.provider === "brevo" ? brevoRetryWindowMs : retryWindowMs))
         throw new InvoiceEmailError(
           409,
           "Email outcome is uncertain. Check the email provider before trying again.",
@@ -122,31 +123,27 @@ export class InvoiceEmail {
 
     let providerId: string;
     try {
-      const response = await this.fetcher("https://api.resend.com/emails", {
+      const provider = this.options.provider ?? "resend";
+      const request = emailRequest(provider, this.options.apiKey!, {
+        from: delivery.sender, to: delivery.recipient, subject: delivery.subject,
+        text: delivery.body, idempotencyKey: delivery.idempotencyKey,
+      });
+      const response = await this.fetcher(request.url, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${this.options.apiKey}`,
-          "Content-Type": "application/json",
-          "Idempotency-Key": delivery.idempotencyKey,
-        },
-        body: JSON.stringify({
-          from: delivery.sender,
-          to: [delivery.recipient],
-          subject: delivery.subject,
-          text: delivery.body,
-        }),
+        headers: request.headers,
+        body: request.body,
         signal: AbortSignal.timeout(15000),
         redirect: "error",
       });
       if (!response.ok)
         throw new InvoiceEmailError(
           response.status === 429 ? 429 : 502,
-          "Email provider rejected the request. Check its account, sender domain and quota before retrying.",
+          "Email provider rejected the request. Check its account, verified sender and quota before retrying.",
         );
-      const parsed = emailResponse.safeParse(await response.json());
-      if (!parsed.success)
+      const parsed = emailResponseId(provider, await response.json());
+      if (!parsed)
         throw new InvoiceEmailError(502, "Email provider returned an invalid response. Check provider logs before retrying.");
-      providerId = parsed.data.id;
+      providerId = parsed;
     } catch (error) {
       await this.db.invoiceDelivery.updateMany({
         where: { id: delivery.id, status: "PENDING" },

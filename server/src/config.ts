@@ -24,6 +24,8 @@ export const configSchema = z.object({
   PAYPAL_ENV: z.literal("sandbox").default("sandbox"),
   GEMINI_API_KEY: z.string().trim().optional(),
   RESEND_API_KEY: z.string().trim().optional(),
+  BREVO_API_KEY: z.string().trim().optional(),
+  EMAIL_PROVIDER: z.enum(["resend", "brevo"]).default("resend"),
   EMAIL_FROM: z.email().optional().or(z.literal("")),
   GEMINI_MODEL: z
     .string()
@@ -53,7 +55,7 @@ export function readConfig(env: NodeJS.ProcessEnv) {
   }
   if (result.data.ACCOUNTS_ENABLED === "true" &&
       (!result.data.TURSO_DATABASE_URL || !result.data.TURSO_AUTH_TOKEN ||
-       !result.data.RESEND_API_KEY || !result.data.EMAIL_FROM))
-    throw new Error("Invalid configuration: TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, RESEND_API_KEY, EMAIL_FROM");
+       !(result.data.EMAIL_PROVIDER === "brevo" ? result.data.BREVO_API_KEY : result.data.RESEND_API_KEY) || !result.data.EMAIL_FROM))
+    throw new Error(`Invalid configuration: TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, ${result.data.EMAIL_PROVIDER === "brevo" ? "BREVO_API_KEY" : "RESEND_API_KEY"}, EMAIL_FROM`);
   return result.data;
 }

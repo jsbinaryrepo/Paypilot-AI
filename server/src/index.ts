@@ -13,6 +13,7 @@ import { refreshOverdue } from "./overdue.js";
 const config = readConfig(process.env);
 const accounts = config.ACCOUNTS_ENABLED === "true";
 const guests = config.PUBLIC_GUEST_ACCESS === "true";
+const emailKey = config.EMAIL_PROVIDER === "brevo" ? config.BREVO_API_KEY : config.RESEND_API_KEY;
 const db = accounts
   ? new PrismaClient({ adapter: new PrismaLibSQL({ url: config.TURSO_DATABASE_URL!, authToken: config.TURSO_AUTH_TOKEN! }) })
   : new PrismaClient({ datasourceUrl: config.DATABASE_URL });
@@ -41,10 +42,11 @@ try {
     paypal,
     guests,
     new InvoiceEmail(db, {
-      apiKey: config.RESEND_API_KEY,
+      provider: config.EMAIL_PROVIDER,
+      apiKey: emailKey,
       from: config.EMAIL_FROM,
     }),
-    accounts ? { origin: config.CLIENT_ORIGIN, apiKey: config.RESEND_API_KEY!, from: config.EMAIL_FROM! } : undefined,
+    accounts ? { origin: config.CLIENT_ORIGIN, provider: config.EMAIL_PROVIDER, apiKey: emailKey!, from: config.EMAIL_FROM! } : undefined,
     new PayPalInvoiceService(db, paypal, config.PAYPAL_BUSINESS_NAME),
   );
   if (accounts) app.use("/app", express.static(resolve("dist/account-client")));
